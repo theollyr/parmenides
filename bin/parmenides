@@ -1,0 +1,6 @@
+#!/usr/bin/env ruby
+
+require 'parmenides'
+require 'parmenides/CLI/cli'
+
+Parmenides::CLI::ParmenidesCLI.start ARGV
