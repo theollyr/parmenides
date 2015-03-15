@@ -3,6 +3,12 @@ require "yaml"
 require "rdf"
 require "sparql/client"
 
+require "configatron/core"
+
+require "parmenides/environment"
+
+require "parmenides/cachable"
+
 require "parmenides/entity"
 require "parmenides/ontology/klass"
 require "parmenides/ontology/property"
@@ -31,9 +37,11 @@ require "parmenides/version"
 
 module Parmenides
   # Your code goes here...
-  Client = SPARQL::Client.new "http://localhost:8890/sparql"
-  DBpOntology = Ontology.new client: Client, resource_vocab: RDF::Vocabulary.new( "http://dbpedia.org/ontology/" )
-  InfoboxStat = Infobox.new name: "štát", ontology: Parmenides::DBpOntology, client: Parmenides::Client
-  StatKlassMapping = Mappers::BasicKlassMapper.mapping_for InfoboxStat.resources
-  StatRB = Evaluation::ResourceBase.build based_on: InfoboxStat.resources
+  ENV = Environment.from_parameters client: "http://localhost:8890/sparql", main_language: "sk",
+  		other_languages: [ "en", "es", "de" ], template: "Šablóna:Infobox_",
+  		cache_dir: "/home/brenin/swe/cache"
+
+  InfoboxStat = Infobox.new name: "štát", environment: ENV
+  # StatKlassMapping = Mappers::BasicKlassMapper.mapping_for InfoboxStat.resources
+  # StatRB = Evaluation::ResourceBase.build based_on: InfoboxStat.resources
 end

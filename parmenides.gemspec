@@ -25,4 +25,5 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency "rdf"
   spec.add_runtime_dependency "sparql-client"
   spec.add_runtime_dependency "awesome_print"
+  spec.add_runtime_dependency "configatron"
 end

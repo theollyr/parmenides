@@ -20,8 +20,7 @@ module Parmenides
 					options[:infobox].each do |ibx_name|
 
 						ibx = Parmenides::Infobox.new name: ibx_name, 
-							ontology: Parmenides::DBpOntology,
-							client: Parmenides::Client
+							environment: Parmenides::ENV
 
 						puts ibx_name + ": " + mapper.mapping_for( ibx.resources ).uri
 
@@ -33,9 +32,8 @@ module Parmenides
 
 					options[:infobox].each do |ibx_name|
 
-						ibx = Parmenides::Infobox.new name: ibx_name,
-							ontology: Parmenides::DBpOntology,
-							client: Parmenides::Client
+						ibx = Parmenides::Infobox.new name: ibx_name, 
+							environment: Parmenides::ENV
 
 						puts "Infobox #{options[:infobox]}..."
 						ap( ( mapper.mapping_for( ibx.properties ).map { |r, m| [r.to_s, m.to_s] }.to_h ),
@@ -61,9 +59,8 @@ module Parmenides
 
 					options[:infobox].each do |ibx_name|
 
-						ibx = Parmenides::Infobox.new name: ibx_name,
-							ontology: Parmenides::DBpOntology,
-							client: Parmenides::Client
+						ibx = Parmenides::Infobox.new name: ibx_name, 
+							environment: Parmenides::ENV
 
 						mappers.each do |mapper|
 
@@ -83,9 +80,8 @@ module Parmenides
 					mapper = Parmenides::Mappers::BasicPropertyMapper
 					base = YAML.load_file options[:with]
 
-					ibx = Parmenides::Infobox.new name: options[:infobox][0],
-						ontology: Parmenides::DBpOntology,
-						client: Parmenides::Client
+					ibx = Parmenides::Infobox.new name: options[:infobox][0], 
+							environment: Parmenides::ENV
 
 					expect = mapper.mapping_for ibx.properties
 

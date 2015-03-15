@@ -3,13 +3,11 @@ module Parmenides
 	class Ontology
 
 		attr_reader :client
-		attr_reader :resource_vocab, :property_vocab
+		attr_reader :vocabulary
 
-		def initialize client:, resource_vocab:nil,
-								property_vocab:nil
+		def initialize client:
 
-			@resource_vocab = resource_vocab
-			@property_vocab = property_vocab
+			@vocabulary = ::RDF::Vocabulary.new "http://dbpedia.org/ontology/"
 
 			@client = client
 
@@ -31,7 +29,7 @@ module Parmenides
 			if label.is_a? RDF::URI
 				r_uri = label
 			else
-				r_uri = resource_vocab.__send__( label )
+				r_uri = vocabulary.__send__( label )
 			end
 
 			# get subClassOf
@@ -59,7 +57,7 @@ module Parmenides
 		end
 
 		def build_property label
-			Property.new property_vocab.__send__( label )
+			Property.new vocabulary.__send__( label )
 		end
 
 	end
