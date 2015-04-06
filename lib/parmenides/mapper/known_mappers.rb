@@ -3,6 +3,7 @@ module Parmenides
 	module Mappers
 
 		max_proc = lambda { |data| data.max_by { |_, v| v }[0] }
+		
 
 		BasicKlassMapper = Mapper.new(
 			preprocessor: MergePreprocessor,

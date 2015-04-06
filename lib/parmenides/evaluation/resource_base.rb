@@ -30,13 +30,13 @@ module Parmenides
 
 			end
 
-			def self.load file:, ontology:
+			def self.load file:, environment:
 
 				data = YAML.load_file file
 
 				data.each do |res, h|
 					h.each do |lang, klass|
-						data[res][lang] = ontology.klass klass.split( "/" ).last
+						data[res][lang] = environment.ontology.instance.klass klass.split( "/" ).last
 					end
 				end
 

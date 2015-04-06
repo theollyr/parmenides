@@ -38,20 +38,10 @@ module Parmenides
 			def statistics
 
 				result = evaluate
-				stat = Hash.new 0
+				stat = Hash.new { |h, k| h[k] = [] }
 
 				result.each_value do |eval_result|
-
-					if eval_result.result == :correct
-						stat[:correct] += 1
-					elsif eval_result.result == :wrong
-						stat[:wrong] += 1
-					elsif eval_result.result == :missing_base
-						stat[:missing_base] += 1
-					elsif eval_result.result == :missing
-						stat[:missing] += 1
-					end
-
+					stat[eval_result.result] << eval_result
 				end
 
 				stat

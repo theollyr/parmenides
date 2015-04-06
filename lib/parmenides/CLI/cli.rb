@@ -22,7 +22,8 @@ module Parmenides
 						ibx = Parmenides::Infobox.new name: ibx_name, 
 							environment: Parmenides::ENV
 
-						puts ibx_name + ": " + mapper.mapping_for( ibx.resources ).uri
+						puts ibx_name + ": " 
+						ap mapper.mapping_process_for( ibx.resources )[:after_processing]
 
 					end
 
@@ -55,7 +56,7 @@ module Parmenides
 				when "class"
 
 					mappers = options[:mapper].map { |n| Parmenides::Mappers.const_get n }
-					base = Parmenides::Evaluation::ResourceBase.load file: options[:with], ontology: Parmenides::DBpOntology
+					base = Parmenides::Evaluation::ResourceBase.load file: options[:with], environment: ::Parmenides::ENV
 
 					options[:infobox].each do |ibx_name|
 

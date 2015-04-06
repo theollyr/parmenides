@@ -18,6 +18,10 @@ module Parmenides
 
 		end
 
+		def inspect
+			"#<%s:%d URI:%s>" % [ self.class.to_s, self.object_id, self.uri ]
+		end
+
 		def uri
 			@uri ||= environment.main.resource.vocabulary.__send__ "#{environment.main.template}#{name}"
 		end
@@ -134,9 +138,11 @@ module Parmenides
 
 				count = environment.client.instance.query( count_query )[0][:count].to_i
 
-				step = 50
+				step = 30
 
 				0.step to: count, by: step do |offset|
+
+					print "\r#{offset} / #{count} (#{offset / count.to_f * 100} %)"
 
 					query = property_query.sub( "#step#", step.to_s ).sub( "#offset#", offset.to_s )
 
