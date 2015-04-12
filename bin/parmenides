@@ -1,6 +1,8 @@
 #!/usr/bin/env ruby
 
 require 'parmenides'
-require 'parmenides/CLI/cli'
+require 'parmenides/CLI/newgen_cli'
+
+# Encoding.default_internal = Encoding::UTF_8
 
 Parmenides::CLI::ParmenidesCLI.start ARGV

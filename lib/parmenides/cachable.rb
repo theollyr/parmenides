@@ -18,11 +18,7 @@ module Parmenides
 			end
 
 			def caching_by distinguisher
-
-				class_eval do
-					@cache_distinguisher = distinguisher
-				end
-
+				@cache_distinguisher = distinguisher
 			end
 
 			def cache_variable var
@@ -47,34 +43,39 @@ module Parmenides
 
 		module InstanceMethods
 
-			def save_cache
+			def save_cache override:nil
 
-				dir = environment.cache.directory + "/#{self.class}"
-				Dir.mkdir( dir ) unless Dir.exists? dir
+				dir = environment.cache.directory
+				name = self.send( self.class.cache_distinguisher ).to_s
 
-				prename = self.send( self.class.cache_distinguisher ).to_s + "_"
+				vdir = File.join dir, name
+				Dir.mkdir( vdir ) unless Dir.exists? vdir
 
-				self.class.cache_vars.each do |var|
-					File.open "#{dir}/#{prename}#{var}.cache", "w" do |file|
+				vars = self.class.cache_vars
+				vars = [override] if override
+
+				vars.each do |var|
+
+					File.open File.join( vdir, "#{var}.cache" ), "w" do |file|
 						file.write self.send( "#{var}_to_cache" )
 					end
+
 				end
 
 			end
 
 			def load_cache
 
-				dir = environment.cache.directory + "/#{self.class}"
-				return unless Dir.exists? dir
+				dir = environment.cache.directory
 
-				prename = self.send( self.class.cache_distinguisher ).to_s + "_"
+				name = self.send( self.class.cache_distinguisher ).to_s
 
 				self.class.cache_vars.each do |var|
 
-					file = "#{dir}/#{prename}#{var}.cache"
+					file = File.join dir, name, "#{var}.cache"
 
 					if File.exists? file
-						self.send( "#{var}_from_cache", YAML::load_file( file ) )
+						self.send( "#{var}_from_cache", Psych.load_file( file ) )
 					end
 
 				end

@@ -130,23 +130,48 @@ module Parmenides
 
 				count_query = <<-EOQ
 
-					SELECT ( COUNT( DISTINCT ?resource ) AS ?count ) WHERE {
+					SELECT ( COUNT( DISTINCT ?resource ) AS ?count ) 
+					FROM #{environment.main.uri.to_base}
+					WHERE {
 						?resource #{environment.main.property.vocabulary.wikiPageUsesTemplate.to_base} #{uri.to_base} . 
 					}
 
 				EOQ
 
+				# puts count_query
 				count = environment.client.instance.query( count_query )[0][:count].to_i
 
-				step = 30
+				step = 50
+				
+				resource_query = <<-EOQ
 
-				0.step to: count, by: step do |offset|
+					SELECT ?res
+					FROM #{environment.main.uri.to_base}
+					WHERE {{
+						SELECT ?res
+						FROM #{environment.main.uri.to_base}
+						WHERE {
+							?res #{environment.main.property.vocabulary.wikiPageUsesTemplate.to_base} #{uri.to_base} . 
+						} ORDER BY ?res 
+					}} LIMIT #{step} OFFSET #offset#
 
-					print "\r#{offset} / #{count} (#{offset / count.to_f * 100} %)"
+				EOQ
 
-					query = property_query.sub( "#step#", step.to_s ).sub( "#offset#", offset.to_s )
+				0.step to: count - 1, by: step do |offset|
 
-					environment.client.instance.query( query ).each_solution do |sol|
+					print "\rProperties: #{offset} / #{count} (#{(offset / count.to_f * 100).round 2} %)"
+
+					resources = environment.client.instance.query( resource_query.sub( "#offset#", offset.to_s ) )
+					resources = resources.map do |sol|
+						sol[:res].to_base
+					end
+
+					resources = resources.join( " " )
+
+					query = property_query.sub( "#resources#", resources )
+					# puts query
+
+					environment.client.instance.query( query ).each do |sol|
 						properties[sol[:prop]][sol[:rel]] += 1
 					end
 
@@ -163,52 +188,70 @@ module Parmenides
 			@property_query ||= begin
 
 				temp = "SELECT ?prop ?rel\n"
-				temp << "FROM <http://#{environment.main.prefix}dbpedia.org>\n"
-				temp << "FROM <http://#{environment.main.language}_raw.dbpedia.org>\n"
+				temp << "FROM NAMED #{environment.main.uri.to_base}\n"
+				temp << "FROM NAMED #{environment.main.uri_raw.to_base}\n"
 
-				environment.other.prefixes.each do |prefix|
-					temp << "FROM NAMED <http://#{prefix}dbpedia.org>\n"
+				environment.other.uris.each do |uri|
+					temp << "FROM NAMED #{uri.to_base}\n"
 				end
+
+				filter = "FILTER ( REGEX( STR(#var#), \"http://("
+
+				filter << environment.other.prefixes.map do |prefix|
+					Regexp.escape( prefix ).dump[1..-2]
+				end.join( "|" )
+
+				filter << ")dbpedia\", \"i\" ) ) ."
 
 				temp << <<-EOQ
 					WHERE {
 
-							{
-								SELECT * WHERE {
-									?resource #{environment.main.property.vocabulary.wikiPageUsesTemplate.to_base} #{uri.to_base} . 
-								} limit #step# offset #offset#
-							}
+						VALUES ?resource {
+							#resources#
+						}
 
+						GRAPH #{environment.main.uri_raw.to_base} {
 							?resource ?prop ?ore .
+						}
+
+						GRAPH #{environment.main.uri.to_base} {
+
 							?resource owl:sameAs ?msa .
 
-							VALUES ?g { 
-					EOQ
+							#{filter.sub( "#var#", "?msa" )}
 
-				environment.other.prefixes.each do |prefix|
-					temp << "<http://#{prefix}dbpedia.org> "
+						}
+
+						VALUES ?g { 
+				EOQ
+
+				environment.other.uris.each do |uri|
+					temp << "#{uri.to_base} "
 				end
 
 				temp << <<-EOQ
+						}
+
+						OPTIONAL {
+							GRAPH #{environment.main.uri.to_base} {
+								?ore owl:sameAs ?osa .
 							}
 
-							{
-								?ore owl:sameAs ?osa .
-								GRAPH ?g {
-									?msa ?rel ?osa .
-								}
+							#{filter.sub( "#var#", "?osa" )}
+						}
 
-							} UNION {
+						GRAPH ?g {
 
-								GRAPH ?g { 
-									?msa ?rel ?ore .
-								}
+							{ ?msa ?rel ?osa . }
 
-							} 
+							UNION
+							
+							{ ?msa ?rel ?ore . }
 
 						} 
 
-					EOQ
+					} 
+				EOQ
 
 			end
 
