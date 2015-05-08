@@ -31,6 +31,7 @@ require "parmenides/mapper/known_mappers"
 require "parmenides/evaluation/evaluation_result"
 require "parmenides/evaluation/resource_base"
 require "parmenides/evaluation/evaluator"
+require "parmenides/evaluation/pnr_resource_evaluator"
 require "parmenides/evaluation/resource_evaluator"
 require "parmenides/evaluation/property_evaluator"
 

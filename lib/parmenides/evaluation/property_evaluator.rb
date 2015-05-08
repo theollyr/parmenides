@@ -6,32 +6,50 @@ module Parmenides
 
 			def evaluate
 
-				results = expected.map do |prop, mapping|
+				questioning.map do |ibx, mappings|
 
-					original = base[prop.to_s]
-					expects = mapping
-					
-					result = if original.nil?
-						:missing_base
-					elsif expects == original
-						:correct
+					expected_mappings = dataset[ibx]
+
+					map_result = if expected_mappings.nil?
+						:missing_dataset
 					else
-						:wrong
+
+						part = mappings.map do |property, mapping|
+
+							expected = expected_mappings[property]
+
+							result = if expected.nil?
+								:missing
+							elsif mapping == expected
+								:correct
+							else
+								:wrong
+							end
+
+							temp = {}
+							temp[:property] = property
+							temp[:mapping] = mapping
+							temp[:result] = result
+
+							temp
+
+						end
+
+						# part |= ( expected_mappings.keys - mappings.keys ).map do |mapping|
+
+						# 	temp = {}
+						# 	temp[:mapping] = mapping
+						# 	temp[:result] = :unknown
+
+						# end
+
+						part
+
 					end
 
-					[prop.to_s, EvaluationResult.new( original: original,
-						expected: expects.to_s, result: result )]
+					[ibx, map_result]
 
 				end.to_h
-
-				( base.keys - expected.keys.map( &:to_s ) ).each do |res|
-
-					results[res] = EvaluationResult.new original: base[res],
-						expected: nil, result: :missing
-
-				end
-
-				results
 
 			end
 

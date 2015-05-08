@@ -2,12 +2,12 @@ module Parmenides
 
 	class Evaluator
 
-		attr_accessor :expected, :base
+		attr_accessor :questioning, :dataset
 
-		def initialize expected:, base:
+		def initialize questioning:, dataset:
 
-			@expected = expected
-			@base = base
+			@questioning = questioning
+			@dataset = dataset
 
 		end
 

@@ -52,7 +52,7 @@ module Parmenides
 							next
 						end
 
-						if options[:only_resources]
+						if options[:only_properties]
 							ibx.save_cache override: "properties"
 							next
 						end

@@ -55,11 +55,11 @@ module Parmenides
 			end
 
 			def add_leaf leaf
-				leaves |= [ leaf ]
+				@leaves |= [ leaf ]
 			end
 
 			def remove_leaf leaf
-				leaves -= [ leaf ]
+				@leaves -= [ leaf ]
 			end
 
 			def save!
@@ -73,7 +73,7 @@ module Parmenides
 					Dir.mkdir root.root
 
 					Dir.mkdir root.cache.root
-					Dir.mkdir root.leaves.root
+					Dir.mkdir root.seasons.root
 
 					@physical = true
 

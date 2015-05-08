@@ -8,9 +8,13 @@ module Parmenides
 			def add name
 
 				files = TreeDir.new options[:dir]
+				puts name
 
 				get_branches( files ).each do |branch|
+
 					branch.add_leaf name
+					branch.save!
+
 				end
 
 			end
@@ -21,7 +25,10 @@ module Parmenides
 				files = TreeDir.new options[:dir]
 
 				get_branches( files ).each do |branch|
+
 					branch.remove_leaf name
+					branch.save!
+
 				end
 
 			end

@@ -4,7 +4,7 @@ module Parmenides
 
 		class TruthDir < RootPath
 
-			file "infoboxes", ext: "yaml"
+			file "resources", ext: "yaml"
 			file "properties", ext: "yaml"
 
 		end

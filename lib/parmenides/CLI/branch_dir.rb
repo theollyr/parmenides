@@ -7,7 +7,7 @@ module Parmenides
 			file ".branch", override: "branch"
 
 			dir "cache"
-			dir "leaves"
+			dir "seasons"
 
 		end
 

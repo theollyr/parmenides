@@ -17,7 +17,13 @@ module Parmenides
 		end
 
 		def klass label
+
+			if label.is_a? ::RDF::URI
+				label = label.to_s.split( "/" ).last
+			end
+
 			@resource_cache[label.to_sym] ||= build_resource label 
+
 		end
 
 		def property label
@@ -33,13 +39,19 @@ module Parmenides
 			end
 
 			# get subClassOf
-			result = client.select.where( 
+			result = client.query( <<-EOQ
 
-				[ r_uri, 
-				  RDF::RDFS.subClassOf, 
-				  :superclass ] 
+				SELECT ?superclass
+				FROM <http://dbpo.dbpedia.org>
+				WHERE {
 
-				).result
+					#{r_uri.to_base} rdfs:subClassOf ?superclass .
+					FILTER( REGEX( STR( ?superclass ), "http://dbpedia.org/ontology/", "i" ) ) .
+
+				}
+
+				EOQ
+			)
 
 			if result.size == 1
 				
@@ -58,6 +70,82 @@ module Parmenides
 
 		def build_property label
 			Property.new vocabulary.__send__( label )
+		end
+
+	end
+
+
+	class StaticOntology
+
+		class Klass
+
+			attr_accessor :sub_class_of, :super_class_of
+
+			def initialize uri
+
+				@uri = uri
+				@sub_class_of = nil
+				@super_class_of = []
+
+			end
+
+		end
+
+		attr_reader :client
+
+		def initialize client:
+
+			@client = client
+			@klasses = {}
+
+			load_klasses
+
+		end
+
+		def load_klasses
+
+			query = <<-EOQ
+
+				SELECT *
+				FROM <http://dbpo.dbpedia.org>
+				WHERE {
+
+					?child rdfs:subClassOf ?parent .
+
+				}
+			EOQ
+
+			results = client.query query
+
+			results.each do |result|
+
+				if result.all? { |k, v| ::RDF::OWL.Thing == v || v =~ /^http:\/\/dbpedia.org\/ontology/ }
+
+					child = get_klass result[:child]
+					parent = get_klass result[:parent]
+
+					child.sub_class_of = parent if child.sub_class_of.nil?
+					parent.super_class_of << child
+
+				end
+
+			end
+
+		end
+
+		def get_klass uri
+
+			return @klasses[uri] unless @klasses[uri].nil?
+
+			@klasses[uri] = StaticOntology::Klass.new uri
+
+		end
+
+		def dump root
+
+			subclasses = root.super_class_of.map { |sk| dump sk }
+			{ root.uri.to_s => subclasses }
+
 		end
 
 	end

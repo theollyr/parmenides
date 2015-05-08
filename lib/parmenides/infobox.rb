@@ -9,6 +9,7 @@ module Parmenides
 
 		caching_by :name
 		cache_variable :properties
+		cache_variable :resources
 
 		def initialize name:, environment:
 
@@ -33,7 +34,7 @@ module Parmenides
 				sk_resources = Hash.new { |h, k| h[k] = Resource.new k }
 				int_resources = {}
 
-				environment.client.instance.query( resource_query ).each_solution do |sol|
+				environment.client.instance.query( resource_query ).each do |sol|
 
 					skres = sk_resources[sol[:resource]]
 					intres = int_resources[sol[:sgst]]
@@ -60,50 +61,48 @@ module Parmenides
 			@resource_query ||= begin
 
 				temp = <<-EOQ
-					SELECT *
-					FROM <http://#{environment.main.prefix}dbpedia.org>
+					SELECT ?resource ?sgst ?type
+					FROM NAMED #{environment.main.uri.to_base}
 				EOQ
 
-				environment.other.prefixes.each do |prefix|
-					temp << "FROM <http://#{prefix}dbpedia.org>\n"
+				environment.other.uris.each do |uri|
+					temp << "FROM NAMED #{uri.to_base}\n"
 				end
 
 				temp << <<-EOQ
 					WHERE {
 
-						{
-							select * where {
+						GRAPH #{environment.main.uri.to_base} {
 
-								?resource #{environment.main.property.vocabulary.wikiPageUsesTemplate.to_base} #{uri.to_base} .
-								?resource owl:sameAs ?sgst .
+							?resource #{environment.main.property.vocabulary.wikiPageUsesTemplate.to_base} #{uri.to_base} .
+							?resource owl:sameAs ?sgst .
+
 				EOQ
 
 				temp << "FILTER( regex( str( ?sgst ), \"http://("
 
-				en_in = false
-				environment.other.languages.each do |lang|
-					
-					if lang == "en"
-						en_in = true
-						next
-					end
-
-					temp << "#{lang}\\\\.|"
-
-				end
-
-				unless en_in
-					temp = temp[0...-1]
-				end
+				temp << environment.other.prefixes.map do |prefix|
+					Regexp.escape( prefix ).dump[1..-2]
+				end.join( "|" )
 
 				temp << ")dbpedia.org\", \"i\" ) ) ."
 
 				temp << <<-EOQ
-							}
 						}
 
-						?sgst a ?type .
-						FILTER( regex( str(?type), "^http://dbpedia.org/ontology/(?!Wikidata)(.+)$" ) ) .
+						VALUES ?g {
+				EOQ
+
+				temp << environment.other.uris.map do |uri|
+					uri.to_base
+				end.join( " " )
+
+				temp << <<-EOQ
+						}
+
+						GRAPH ?g {
+							?sgst a ?type .
+						}
 
 					}
 
@@ -225,9 +224,9 @@ module Parmenides
 						VALUES ?g { 
 				EOQ
 
-				environment.other.uris.each do |uri|
-					temp << "#{uri.to_base} "
-				end
+				temp << environment.other.uris.map do |uri|
+					uri.to_base
+				end.join( " " )
 
 				temp << <<-EOQ
 						}
@@ -252,6 +251,47 @@ module Parmenides
 
 					} 
 				EOQ
+
+			end
+
+		end
+
+		def resources_to_cache
+
+			YAML::dump( resources.map do |res|
+
+				ruri = res.uri.to_s
+				oths = res.same_as.map do |ore|
+
+					ouri = ore.uri.to_s
+					type = ore.type.max_by { |k| k.level }.uri.to_s
+
+					[ ouri, type ]
+
+				end.to_h
+
+				[ ruri, oths ]
+
+			end.to_h )
+
+		end
+
+		def resources_from_cache raw
+
+			@resources = raw.map do |ruri, ores|
+
+				res = Resource.new ruri
+
+				others = ores.each do |ore, type|
+
+					other = Resource.new ore
+					other.type << environment.ontology.instance.klass( RDF::URI.new( type ) )
+
+					res.same_as << other
+
+				end
+
+				res
 
 			end
 
