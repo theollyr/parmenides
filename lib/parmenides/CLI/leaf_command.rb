@@ -43,9 +43,14 @@ module Parmenides
 						CLI::Branch.scan_dir files.branches.root
 					else
 
-						branch = CLI::Branch.new selected_branch
-						branch.load File.join( files.branches.root, selected_branch )
-						[branch]
+						selected_branch.split("*").map do |b|
+
+							branch = CLI::Branch.new b
+							branch.load File.join( files.branches.root, b )
+
+							branch
+
+						end
 
 					end
 
