@@ -56,6 +56,10 @@ module Parmenides
 				selected_branch = File.read( files.branches.crown ).chomp
 				branches = Branch.scan_dir files.branches.root
 
+				unless selected_branch == "all"
+					selected_branch = selected_branch.split("*")
+				end
+
 				if br.nil?
 
 					# just show the list
@@ -63,7 +67,7 @@ module Parmenides
 					branches.each do |branch|
 
 						selected_s = " "
-						selected_s = "*" if selected_branch == "all" || selected_branch == branch.name
+						selected_s = "*" if selected_branch == "all" || selected_branch.include?( branch.name )
 
 						puts "#{selected_s} #{branch.name}"
 
@@ -71,12 +75,17 @@ module Parmenides
 
 				else
 
-					br = br.split( "," ).sort.join( "_" )
+					br = br.split( "-" ).map { |b| b.split(",").sort.join( "_" ) }
 					branch_names = branches.map { |b| b.name }
 
 					if options[:new]
 
-						if branch_names.include? br
+						if br.size > 1
+							puts "Can't create more than one brach at once!"
+							return
+						end
+
+						if branch_names.include? br[0]
 							puts "Can't create already existing branch!"
 							return
 						end
@@ -92,12 +101,12 @@ module Parmenides
 
 					else
 
-						unless branch_names.include?( br ) || br == "all"
+						unless ( br & branch_names ) == br || br == ["all"]
 							puts "Can't find such a branch!"
 							return
 						end
 
-						save_current_branch files.branches.crown, br
+						save_current_branch files.branches.crown, br.join("*")
 
 					end
 
@@ -354,7 +363,7 @@ module Parmenides
 
 					path = get_season_file options[:season], branch, ""
 					next if path.nil?
-					
+
 					resources = File.join path, "resources.yaml"
 					properties = File.join path, "properties.yaml"
 
@@ -412,9 +421,14 @@ module Parmenides
 						CLI::Branch.scan_dir files.branches.root
 					else
 
-						branch = CLI::Branch.new selected_branch
-						branch.load File.join( files.branches.root, selected_branch )
-						[branch]
+						selected_branch.split("*").map do |b|
+
+							branch = CLI::Branch.new b
+							branch.load File.join( files.branches.root, b )
+
+							branch
+
+						end
 
 					end
 
@@ -427,7 +441,13 @@ module Parmenides
 					else
 
 						if /\A\d+\z/.match(label)
-							File.join branch.root.seasons.root, options[:label], filename
+
+							spath = File.join( branch.root.seasons.root, "#{label}*#{File::Separator}" )
+							search = Dir.glob( spath )
+							return nil if search.empty?
+
+							File.join search.first, filename
+
 						else
 
 							spath = File.join( branch.root.seasons.root, "*#{label}#{File::Separator}" )
