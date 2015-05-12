@@ -18,14 +18,8 @@ module Parmenides
 
 					qchain = mapping.ancestors_chain
 
-					# ap cchain
-					# ap qchain
-
 					cchain = cchain[1..-1]
 					qchain = qchain[1..-1]
-
-					# ap cchain
-					# ap qchain
 
 					qchain.each_with_index do |k, i|
 

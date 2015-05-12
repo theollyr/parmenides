@@ -29,4 +29,5 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency "configatron"
   spec.add_runtime_dependency "nokogiri"
   spec.add_runtime_dependency "rest-client"
+  spec.add_runtime_dependency "psych", "= 2.0.8"
 end

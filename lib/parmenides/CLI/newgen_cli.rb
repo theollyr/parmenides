@@ -108,8 +108,9 @@ module Parmenides
 			desc "autumn", "create new set of mapping results"
 			option :property_mapper, aliases: '-p', type: :string
 			option :resource_mapper, aliases: '-r', type: :string
-			option :leaf, aliases: '-l',type: :array
+			option :leaf, aliases: '-f',type: :array
 			option :simulate, aliases: '-s', type: :boolean
+			option :label, aliases: '-l', type: :string
 			def autumn
 
 				files = TreeDir.new options[:dir]
@@ -167,7 +168,7 @@ module Parmenides
 						branch.save!
 
 						season_file = branch.root.seasons.root
-						season_file = File.join season_file, branch.season.to_s
+						season_file = File.join season_file, "#{branch.season.to_s}_#{options[:label]}"
 
 						Dir.mkdir season_file
 
@@ -200,15 +201,22 @@ module Parmenides
 			end
 
 			desc "evaluate", "evaluates the season against the Truth"
-			option :show_missing, aliases: '-m', type: :boolean
+			# option :show_missing, aliases: '-m', type: :boolean
 			option :only_resources, aliases: '-r', type: :boolean
 			option :only_properties, aliases: '-p', type: :boolean
+			option :method, aliases: '-m', type: :string, default: 'pnr'
+			option :label, aliases: '-l', type: :string
 			def evaluate
 
 				files = TreeDir.new options[:dir]
 
 				conf = ::Parmenides::Environment.empty
 				conf.configure_from_hash Psych.load_file( files.settings )
+
+				if options[:method] == "hierarchy"
+					puts "Loading ontology..."
+					conf.ontology.instance = Parmenides::StaticOntology.new client: conf.client.instance
+				end
 
 				get_branches( files ).each do |branch|
 
@@ -218,31 +226,55 @@ module Parmenides
 					if options[:only_resources]
 
 						truth_res_file = files.truth.resources
-						quest_res_file = File.join branch.root.seasons.root, branch.season.to_s, "resources.yaml"
+							
+						quest_res_file = get_season_file options[:label], branch, "resources.yaml"
+						next if quest_res_file.nil?
 
 						if File.exists?( truth_res_file ) && File.exists?( quest_res_file )
 
 							questioning = Psych.load_file quest_res_file
 							truth = Psych.load_file truth_res_file
 
-							questioning = questioning.map do |uri, klass|
-								k = if klass.nil? 
-									::Parmenides::Ontology::Klass::Thing 
-								else
-									conf.ontology.instance.klass( klass.split( "/" ).last )
-								end
+							evaluator = unless options[:method] == "hierarchy"
 
-								[uri, k]
-							end.to_h
+								questioning = questioning.map do |uri, klass|
+									k = if klass.nil? 
+										::Parmenides::Ontology::Klass::Thing 
+									else
+										conf.ontology.instance.klass( klass.split( "/" ).last )
+									end
 
-							truth = truth.map do |uri, klass|
-								[uri, conf.ontology.instance.klass( klass.split( "/" ).last )]
-							end.to_h
+									[uri, k]
+								end.to_h
+
+								truth = truth.map do |uri, klass|
+									[uri, conf.ontology.instance.klass( klass.split( "/" ).last )]
+								end.to_h
 
 							# ap questioning
 							# ap truth
 
-							evaluator = ::Parmenides::Evaluation::PnRResourceEvaluator.new questioning: questioning, dataset: truth
+								::Parmenides::Evaluation::PnRResourceEvaluator.new questioning: questioning, dataset: truth
+
+							else
+
+								questioning = questioning.map do |uri, klass|
+
+									k = conf.ontology.instance.klass ::RDF::URI.new klass
+									[uri, k]
+
+								end.to_h
+
+								truth = truth.map do |uri, klass|
+
+									k = conf.ontology.instance.klass ::RDF::URI.new klass
+									[uri, k]
+
+								end.to_h
+
+								::Parmenides::Evaluation::TagResourceEvaluator.new questioning: questioning, dataset: truth
+
+							end
 
 							puts
 							puts "Resources:"
@@ -256,7 +288,8 @@ module Parmenides
 					if options[:only_properties]
 
 						truth_prop_file = files.truth.properties
-						quest_prop_file = File.join branch.root.seasons.root, branch.season.to_s, "properties.yaml"
+						quest_prop_file = get_season_file options[:label], branch, "properties.yaml"
+						next if quest_prop_file.nil?
 
 						stat = Hash.new 0
 
@@ -298,6 +331,63 @@ module Parmenides
 
 			end
 
+			desc "mappers", "lists all available mappers"
+			def mappers
+
+				puts "Available mappers:"
+				::Parmenides::Mappers.constants( false ).each do |k|
+					puts "  #{k}" unless k == :Mapper
+				end
+
+			end
+
+			desc "export", "exports mappings to DBpedia format"
+			option :season, aliases: '-s', type: :string
+			def export
+
+				files = TreeDir.new options[:dir]
+
+				get_branches( files ).each do |branch|
+
+					puts
+					puts "Branch #{branch.name}..."
+
+					path = get_season_file options[:season], branch, ""
+					next if path.nil?
+					
+					resources = File.join path, "resources.yaml"
+					properties = File.join path, "properties.yaml"
+
+					if File.exists?( resources ) && File.exists?( properties )
+
+						resources = Psych.load_file resources
+						properties = Psych.load_file properties
+
+						resources.each do |ibx, klass|
+
+							puts "Mapping for the infobox #{ibx}..."
+							puts "----"
+
+							puts "{{TemplateMapping\n| mapToClass = #{klass.split("ontology/").last}"
+							puts "| mappings ="
+
+							properties[ibx].each do |atr, pred|
+
+								print "  {{ PropertyMapping | templateProperty = #{atr.split("property/").last}"
+								puts " | ontologyProperty = #{pred.split("ontology/").last} }}"
+
+							end
+
+							puts "}}\n----"
+
+						end
+
+					end
+
+				end
+
+			end
+
 			desc "cache SUBCOMMAND ...ARGS", "manage the cache"
 			subcommand "cache", CLI::Cache
 
@@ -325,6 +415,28 @@ module Parmenides
 						branch = CLI::Branch.new selected_branch
 						branch.load File.join( files.branches.root, selected_branch )
 						[branch]
+
+					end
+
+				end
+
+				def get_season_file label, branch, filename
+
+					if label.nil?
+						File.join branch.root.seasons.root, branch.season.to_s, filename
+					else
+
+						if /\A\d+\z/.match(label)
+							File.join branch.root.seasons.root, options[:label], filename
+						else
+
+							spath = File.join( branch.root.seasons.root, "*#{label}#{File::Separator}" )
+							search = Dir.glob( spath )
+							return nil if search.empty?
+
+							File.join search.first, filename
+
+						end
 
 					end
 

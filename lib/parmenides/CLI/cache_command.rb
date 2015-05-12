@@ -8,6 +8,7 @@ module Parmenides
 			option :only_resources, aliases: '-r', type: :boolean
 			option :only_properties, aliases: '-p', type: :boolean
 			option :leaf, aliases: '-l', type: :array
+			option :rebuild, type: :boolean
 			def build
 
 				files = TreeDir.new options[:dir]
@@ -45,7 +46,7 @@ module Parmenides
 						puts "Working on the leaf #{ibx_name}..."
 
 						ibx = ::Parmenides::Infobox.new name: ibx_name, environment: conf
-						ibx.load_cache
+						ibx.load_cache unless options[:rebuild]
 						
 						if options[:only_resources]
 							ibx.save_cache override: "resources"
@@ -65,6 +66,15 @@ module Parmenides
 
 				end
 
+			end
+
+			desc "rebuild", "rebuilds cache for later use"
+			option :only_resources, aliases: '-r', type: :boolean
+			option :only_properties, aliases: '-p', type: :boolean
+			option :leaf, aliases: '-l', type: :array
+			def rebuild
+				options[:rebuild] = true
+				invoke :build, [], options
 			end
 
 		end

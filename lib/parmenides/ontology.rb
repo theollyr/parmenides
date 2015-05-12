@@ -80,12 +80,55 @@ module Parmenides
 		class Klass
 
 			attr_accessor :sub_class_of, :super_class_of
+			attr_reader :uri
 
 			def initialize uri
 
 				@uri = uri
 				@sub_class_of = nil
 				@super_class_of = []
+
+			end
+
+			def inspect
+				"#<#{self.class}:#{self.object_id} #{uri.to_s.split("/").last}>"
+			end
+
+			alias_method :to_s, :inspect
+
+			def descendants_count limit_level=nil
+
+				if !limit_level.nil? && level > limit_level
+					return 0
+				end
+
+				super_class_of.inject(1) do |sum, k|
+					sum + k.descendants_count( limit_level )
+				end
+
+			end
+
+			def level
+				@level ||= ancestors_chain.size - 1
+			end
+
+			def ancestors_chain
+
+				@ancestors_chain ||= begin
+
+					current = self
+					list = []
+
+					until current.nil?
+
+						list.unshift current
+						current = current.sub_class_of
+
+					end
+
+					@ancestors = list
+
+				end
 
 			end
 
@@ -121,8 +164,8 @@ module Parmenides
 
 				if result.all? { |k, v| ::RDF::OWL.Thing == v || v =~ /^http:\/\/dbpedia.org\/ontology/ }
 
-					child = get_klass result[:child]
-					parent = get_klass result[:parent]
+					child = klass result[:child]
+					parent = klass result[:parent]
 
 					child.sub_class_of = parent if child.sub_class_of.nil?
 					parent.super_class_of << child
@@ -133,7 +176,7 @@ module Parmenides
 
 		end
 
-		def get_klass uri
+		def klass uri
 
 			return @klasses[uri] unless @klasses[uri].nil?
 
