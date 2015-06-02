@@ -4,6 +4,8 @@ require 'awesome_print'
 require 'fileutils'
 require 'yaml'
 
+require 'nokogiri'
+
 require 'parmenides/CLI/cache_command'
 require 'parmenides/CLI/leaf_command'
 
@@ -352,9 +354,13 @@ module Parmenides
 
 			desc "export", "exports mappings to DBpedia format"
 			option :season, aliases: '-s', type: :string
+			option :xml, aliases: '-x', type: :boolean
 			def export
 
 				files = TreeDir.new options[:dir]
+
+				conf = ::Parmenides::Environment.empty
+				conf.configure_from_hash Psych.load_file( files.settings )
 
 				get_branches( files ).each do |branch|
 
@@ -372,22 +378,74 @@ module Parmenides
 						resources = Psych.load_file resources
 						properties = Psych.load_file properties
 
-						resources.each do |ibx, klass|
+						if options[:xml]
 
-							puts "Mapping for the infobox #{ibx}..."
-							puts "----"
+							xmlo = Nokogiri::XML::Builder.new encoding: 'utf-8' do |x|
+								x.mediawiki xmlns: "http://www.mediawiki.org/xml/export-0.8/" do
 
-							puts "{{TemplateMapping\n| mapToClass = #{klass.split("ontology/").last}"
-							puts "| mappings ="
+									resources.each do |ibx, klass|
 
-							properties[ibx].each do |atr, pred|
+										x.page do
 
-								print "  {{ PropertyMapping | templateProperty = #{atr.split("property/").last}"
-								puts " | ontologyProperty = #{pred.split("ontology/").last} }}"
+											ibx.match conf.main.template
+											ibx_name = $'
+											x.title "Mapping #{conf.mail.language}:#{ibx_name}"
 
+											x.revision do 
+
+												outmap = <<-EOM
+{{TemplateMapping\n| mapToClass = #{klass.split("ontology/").last}
+| mappings =
+												EOM
+
+												properties[ibx].each do |atr, pred|
+
+													outmap << <<-EOM
+  {{ PropertyMapping | templateProperty = #{atr.split("property/").last}" | ontologyProperty = #{pred.split("ontology/").last} }}"
+													EOM
+
+												end
+
+												outmap << "}}"
+
+												x.text outmap
+
+											end
+
+										end
+
+									end
+
+								end
 							end
 
-							puts "}}\n----"
+							puts xmlo.to_xml
+
+						else
+
+							resources.each do |ibx, klass|
+
+								outmap = <<-EOM
+{{TemplateMapping\n| mapToClass = #{klass.split("ontology/").last}
+| mappings =
+								EOM
+
+								properties[ibx].each do |atr, pred|
+
+									outmap << <<-EOM
+  {{ PropertyMapping | templateProperty = #{atr.split("property/").last}" | ontologyProperty = #{pred.split("ontology/").last} }}"
+									EOM
+
+								end
+
+								outmap << "}}"
+
+								puts "Mapping for the infobox #{ibx}..."
+								puts "----"
+
+								puts "#{outmap}\n---"
+
+							end
 
 						end
 
