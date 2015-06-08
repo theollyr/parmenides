@@ -355,6 +355,7 @@ module Parmenides
 			desc "export", "exports mappings to DBpedia format"
 			option :season, aliases: '-s', type: :string
 			option :xml, aliases: '-x', type: :boolean
+			option :ns, type: :string, required: true
 			def export
 
 				files = TreeDir.new options[:dir]
@@ -389,9 +390,14 @@ module Parmenides
 
 											ibx.match conf.main.template
 											ibx_name = $'
-											x.title "Mapping #{conf.mail.language}:#{ibx_name}"
+											x.title "Mapping #{conf.main.language}:#{ibx_name.gsub( "_", " " )}"
+											x.ns options[:ns]
+											x.id_
 
 											x.revision do 
+
+												x.id_
+												x.timestamp
 
 												outmap = <<-EOM
 {{TemplateMapping\n| mapToClass = #{klass.split("ontology/").last}
@@ -401,14 +407,14 @@ module Parmenides
 												properties[ibx].each do |atr, pred|
 
 													outmap << <<-EOM
-  {{ PropertyMapping | templateProperty = #{atr.split("property/").last}" | ontologyProperty = #{pred.split("ontology/").last} }}"
+  {{ PropertyMapping | templateProperty = #{atr.split("property/").last} | ontologyProperty = #{pred.split("ontology/").last} }}
 													EOM
 
 												end
 
 												outmap << "}}"
 
-												x.text outmap
+												x.text_ outmap
 
 											end
 
