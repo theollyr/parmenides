@@ -407,7 +407,7 @@ module Parmenides
 												properties[ibx].each do |atr, pred|
 
 													outmap << <<-EOM
-  {{ PropertyMapping | templateProperty = #{atr.split("property/").last} | ontologyProperty = #{pred.split("ontology/").last} }}
+  {{ PropertyMapping | templateProperty = #{conf.ontology.instance.property( atr.split("property/").last ).label.first} | ontologyProperty = #{pred.split("ontology/").last} }}
 													EOM
 
 												end

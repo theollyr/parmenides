@@ -1,3 +1,6 @@
+require "parmenides/ontology/klass"
+require "parmenides/ontology/property"
+
 module Parmenides
 
 	class Ontology
@@ -8,6 +11,7 @@ module Parmenides
 		def initialize client:
 
 			@vocabulary = ::RDF::Vocabulary.new "http://dbpedia.org/ontology/"
+			@pvocabulary = ::RDF::Vocabulary.new "http://sk.dbpedia.org/property/"
 
 			@client = client
 
@@ -32,7 +36,7 @@ module Parmenides
 
 		def build_resource label
 
-			if label.is_a? RDF::URI
+			if label.is_a? ::RDF::URI
 				r_uri = label
 			else
 				r_uri = vocabulary.__send__( label )
@@ -69,7 +73,36 @@ module Parmenides
 		end
 
 		def build_property label
-			Property.new vocabulary.__send__( label )
+
+			p_uri = if label.is_a? ::RDF::URI
+				label
+			else
+				@pvocabulary.__send__( label )
+			end
+
+			result = client.query( <<-EOQ
+
+				SELECT ?label
+				FROM <http://sk.dbpedia.org>
+				WHERE {
+					#{p_uri.to_base} rdfs:label ?label .
+				}
+
+				EOQ
+
+			)
+
+			if result.size == 1
+
+				prop = Property.new p_uri
+				prop.label << result.first[:label]
+
+				prop
+
+			else
+				nil
+			end
+
 		end
 
 	end

@@ -55,7 +55,7 @@ module Parmenides
 				self.uri == oth.uri
 			end
 
-			Thing = self.new RDF::OWL.Thing
+			Thing = self.new ::RDF::OWL.Thing
 
 		end
 
