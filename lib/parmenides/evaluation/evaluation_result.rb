@@ -1,22 +1,18 @@
 module Parmenides
+  module Evaluation
+    class EvaluationResult
 
-	module Evaluation
+      attr_reader :original, :expected, :result
 
-		class EvaluationResult
+      def initialize original:, expected:, result:
 
-			attr_reader :original, :expected, :result
+        @original = original
+        @expected = expected
 
-			def initialize original:, expected:, result:
+        @result = result
 
-				@original = original
-				@expected = expected
+      end
 
-				@result = result
-
-			end
-
-		end
-
-	end
-
+    end
+  end
 end

@@ -1,73 +1,69 @@
 module Parmenides
+  module Evaluation
+    class ResourceEvaluator < Evaluator
 
-	module Evaluation
+      def evaluate
 
-		class ResourceEvaluator < Evaluator
+        result = Hash.new { |h, k| h[k] = Hash.new }
 
-			def evaluate
+        base.each do |resource, mappings|
 
-				result = Hash.new { |h, k| h[k] = Hash.new }
+          mappings.each do |lang, mapping|
 
-				base.each do |resource, mappings|
+            coerce = expected.ancestors_chain.include?( mapping ) ||
+                  mapping.ancestors_chain.include?( expected )
 
-					mappings.each do |lang, mapping|
+            accuracy = 0.0
+            accuracy = expected.level.to_f / mapping.level.to_f if coerce
 
-						coerce = expected.ancestors_chain.include?( mapping ) ||
-									mapping.ancestors_chain.include?( expected )
+            eval_result = EvaluationResult.new(
+              original: mapping,
+              expected: self.expected,
+              result: accuracy
+              )
 
-						accuracy = 0.0
-						accuracy = expected.level.to_f / mapping.level.to_f if coerce
+            result[resource][lang] = eval_result
 
-						eval_result = EvaluationResult.new(
-							original: mapping,
-							expected: self.expected,
-							result: accuracy
-							)
+          end
 
-						result[resource][lang] = eval_result
+        end
 
-					end
+        result
 
-				end
+      end
 
-				result
+      def statistics
 
-			end
+        result = evaluate
 
-			def statistics
+        lang_stats = Hash.new { |h, k| h[k] = Hash.new( 0 ) }
 
-				result = evaluate
+        result.each_value do |resource|
 
-				lang_stats = Hash.new { |h, k| h[k] = Hash.new( 0 ) }
+          resource.each do |lang, eval_result|
 
-				result.each_value do |resource|
+            if eval_result.result.nan? || eval_result.result.infinite?
+              lang_stats[lang][:new] += 1
+            else
+              lang_stats[lang][:sum] += eval_result.result
+              lang_stats[lang][:count] += 1
+            end
 
-					resource.each do |lang, eval_result|
+          end
 
-						if eval_result.result.nan? || eval_result.result.infinite?
-							lang_stats[lang][:new] += 1
-						else
-							lang_stats[lang][:sum] += eval_result.result
-							lang_stats[lang][:count] += 1
-						end
+        end
 
-					end
+        Hash[lang_stats.map do |lang, stat|
 
-				end
+          h = { :new => stat[:new],
+              :stat => stat[:sum]/stat[:count] }
 
-				Hash[lang_stats.map do |lang, stat|
+          [lang, h]
 
-					h = { :new => stat[:new],
-						  :stat => stat[:sum]/stat[:count] }
+        end]
 
-					[lang, h]
+      end
 
-				end]
-
-			end
-
-		end
-
-	end
-
+    end
+  end
 end

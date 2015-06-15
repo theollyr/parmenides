@@ -1,32 +1,30 @@
 module Parmenides
+  module Processor
+    extend self
 
-	module Processor
-		extend self
+    # attr_accessor :input
 
-		# attr_accessor :input
+    # def initialize opts = {}
 
-		# def initialize opts = {}
+    #   @input = opts[:input]
 
-		# 	@input = opts[:input]
+    # end
 
-		# end
+    def process input
 
-		def process input
+      # if input.nil?
+      #   input = @input
+      # else
+      #   input
+      # end
 
-			# if input.nil?
-			# 	input = @input
-			# else
-			# 	input
-			# end
+    end
 
-		end
+    def call input
 
-		def call input
+      process input
 
-			process input
+    end
 
-		end
-
-	end
-
+  end
 end

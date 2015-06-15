@@ -1,8 +1,5 @@
 require "yaml"
-
 require "rdf"
-require "sparql/client"
-
 require "configatron/core"
 
 require "parmenides/client"
@@ -37,17 +34,3 @@ require "parmenides/evaluation/resource_evaluator"
 require "parmenides/evaluation/property_evaluator"
 
 require "parmenides/version"
-
-module Parmenides
-  # ENV = Environment.from_parameters client: "http://localhost:8890/sparql", main_language: "sk",
-  # 		other_languages: [ "en", "es", "de" ], template: "Šablóna:Infobox_",
-  # 		cache_dir: "/home/brenin/swe/parmenides/cache"
-
-  # ENV_IT = Environment.from_parameters client: "http://localhost:8890/sparql", main_language: "it",
-  # 		   other_languages: [ "en", "es", "de" ], template: "Template:",
-  # 		   cache_dir: "/home/brenin/swe/parmenides/cache/it"
-
-  # InfoboxStat = Infobox.new name: "štát", environment: ENV
-  # StatKlassMapping = Mappers::BasicKlassMapper.mapping_for InfoboxStat.resources
-  # StatRB = Evaluation::ResourceBase.build based_on: InfoboxStat.resources
-end

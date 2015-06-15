@@ -1,51 +1,47 @@
 module Parmenides
+  module Evaluation
+    class TagResourceEvaluator < Evaluator
 
-	module Evaluation
+      def evaluate
 
-		class TagResourceEvaluator < Evaluator
+        res = Hash.new 0
 
-			def evaluate
+        questioning.each do |ibx, mapping|
 
-				res = Hash.new 0
+          tresult = 0.0
 
-				questioning.each do |ibx, mapping|
+          cchain = dataset[ibx].ancestors_chain[1..-1] unless dataset[ibx].nil?
 
-					tresult = 0.0
+          # p cchain
 
-					cchain = dataset[ibx].ancestors_chain[1..-1] unless dataset[ibx].nil?
+          next if cchain.nil?
 
-					# p cchain
+          qchain = mapping.ancestors_chain[1..-1]
+          # p qchain
 
-					next if cchain.nil?
+          if qchain.size > 0 &&
+            [qchain.size, cchain.size].min.times.all? { |i| cchain[i] == qchain[i] }
 
-					qchain = mapping.ancestors_chain[1..-1]
-					# p qchain
+            if qchain.size >= cchain.size
+              tresult = 1.0
+            else
+              tresult = 1.0 / ( qchain.last.descendants_count( cchain.last.level ) )
+            end
 
-					if qchain.size > 0 &&
-						[qchain.size, cchain.size].min.times.all? { |i| cchain[i] == qchain[i] }
+          end
 
-						if qchain.size >= cchain.size
-							tresult = 1.0
-						else
-							tresult = 1.0 / ( qchain.last.descendants_count( cchain.last.level ) )
-						end
+          # puts "Infobox <#{ibx}..."
+          # puts "Q#{qchain.last} <> C#{cchain.last} :: #{tresult}"
 
-					end
+          res[:score] += tresult
+          res[:count] += 1
 
-					# puts "Infobox <#{ibx}..."
-					# puts "Q#{qchain.last} <> C#{cchain.last} :: #{tresult}"
+        end
 
-					res[:score] += tresult
-					res[:count] += 1
+        res
 
-				end
+      end
 
-				res
-
-			end
-
-		end
-
-	end
-
+    end
+  end
 end

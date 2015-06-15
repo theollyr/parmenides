@@ -1,82 +1,78 @@
 module Parmenides
+  module Evaluation
+    class ResourceBase
 
-	module Evaluation
+      DOMAIN_NAME_RX = Regexp.compile /((?<thld>[^\.]+)\.)?(?<sld>[^\.]+)\.(?<tld>[^\.]+)/
 
-		class ResourceBase
+      def self.build based_on:
 
-			DOMAIN_NAME_RX = Regexp.compile /((?<thld>[^\.]+)\.)?(?<sld>[^\.]+)\.(?<tld>[^\.]+)/
+        resources = based_on
+        base = Hash.new { |h, k| h[k] = Hash.new }
 
-			def self.build based_on:
+        resources.each do |res|
 
-				resources = based_on
-				base = Hash.new { |h, k| h[k] = Hash.new }
+          res.same_as.each do |interlink|
 
-				resources.each do |res|
+            klass = interlink.type.max_by { |k| k.level }
+            lang = interlink.uri.host.match( DOMAIN_NAME_RX )[:thld]
 
-					res.same_as.each do |interlink|
+            lang = "en" if lang.nil? || lang == "www"
 
-						klass = interlink.type.max_by { |k| k.level }
-						lang = interlink.uri.host.match( DOMAIN_NAME_RX )[:thld]
+            base[res][lang] = klass
 
-						lang = "en" if lang.nil? || lang == "www"
+          end
 
-						base[res][lang] = klass
+        end
 
-					end
+        new base: base
 
-				end
+      end
 
-				new base: base
+      def self.load file:, environment:
 
-			end
+        data = YAML.load_file file
 
-			def self.load file:, environment:
+        data.each do |res, h|
+          h.each do |lang, klass|
+            data[res][lang] = environment.ontology.instance.klass klass.split( "/" ).last
+          end
+        end
 
-				data = YAML.load_file file
+        new base: data
 
-				data.each do |res, h|
-					h.each do |lang, klass|
-						data[res][lang] = environment.ontology.instance.klass klass.split( "/" ).last
-					end
-				end
+      end
 
-				new base: data
+      attr_reader :base
 
-			end
+      def initialize base:
 
-			attr_reader :base
+        @base = base
 
-			def initialize base:
+      end
 
-				@base = base
+      def each &blk
+        base.each &blk
+      end
 
-			end
+      def set_custom klass
 
-			def each &blk
-				base.each &blk
-			end
+        base.each_value do |val|
+          val[:custom] = klass
+        end
 
-			def set_custom klass
+      end
 
-				base.each_value do |val|
-					val[:custom] = klass
-				end
+      def to_yaml
 
-			end
+        Hash[base.map do |res, h|
 
-			def to_yaml
+          h = Hash[h.map { |l, k| [l, k.uri.to_s] }]
+          [res.uri.to_s, h]
 
-				Hash[base.map do |res, h|
+        end].to_yaml
 
-					h = Hash[h.map { |l, k| [l, k.uri.to_s] }]
-					[res.uri.to_s, h]
+      end
 
-				end].to_yaml
-
-			end
-
-		end
-
-	end
-
+    end
+  end
 end

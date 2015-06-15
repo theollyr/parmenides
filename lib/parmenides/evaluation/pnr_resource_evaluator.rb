@@ -1,58 +1,54 @@
 module Parmenides
+  module Evaluation
+    class PnRResourceEvaluator < Evaluator
 
-	module Evaluation
+      def evaluate
 
-		class PnRResourceEvaluator < Evaluator
+        res = Hash.new 0
 
-			def evaluate
+        questioning.each do |ibx, mapping|
 
-				res = Hash.new 0
+          cchain = dataset[ibx].ancestors_chain unless dataset[ibx].nil?
 
-				questioning.each do |ibx, mapping|
+          if cchain.nil?
+            next
+          end
 
-					cchain = dataset[ibx].ancestors_chain unless dataset[ibx].nil?
+          qchain = mapping.ancestors_chain
 
-					if cchain.nil?
-						next
-					end
+          cchain = cchain[1..-1]
+          qchain = qchain[1..-1]
 
-					qchain = mapping.ancestors_chain
+          qchain.each_with_index do |k, i|
 
-					cchain = cchain[1..-1]
-					qchain = qchain[1..-1]
+            cmp = cchain[i]
 
-					qchain.each_with_index do |k, i|
+            if cmp.nil?
+              res[:fp] += 1
+              next
+            end
 
-						cmp = cchain[i]
+            if k == cmp
+              res[:tp] += 1
+            else
+              res[:fp] += 1
+              res[:fn] += 1
+            end
 
-						if cmp.nil?
-							res[:fp] += 1
-							next
-						end
+          end
 
-						if k == cmp
-							res[:tp] += 1
-						else
-							res[:fp] += 1
-							res[:fn] += 1
-						end
+          more = cchain.size - qchain.size
+          res[:fn] += more if more > 0
 
-					end
+        end
 
-					more = cchain.size - qchain.size
-					res[:fn] += more if more > 0
+        res[:precision] = res[:tp] / ( res[:tp] + res[:fp] ).to_f
+        res[:recall] = res[:tp] / ( res[:tp] + res[:fn] ).to_f
+        res[:f1] = ( res[:precision] * res[:recall] ) / ( res[:precision] + res[:recall] ) * 2
+        res
 
-				end
+      end
 
-				res[:precision] = res[:tp] / ( res[:tp] + res[:fp] ).to_f
-				res[:recall] = res[:tp] / ( res[:tp] + res[:fn] ).to_f
-				res[:f1] = ( res[:precision] * res[:recall] ) / ( res[:precision] + res[:recall] ) * 2
-				res
-
-			end
-
-		end
-
-	end
-
+    end
+  end
 end

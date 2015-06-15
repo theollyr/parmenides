@@ -1,337 +1,332 @@
 module Parmenides
+  class Infobox
 
-	class Infobox
+    attr_reader :name
+    attr_reader :environment
 
-		attr_reader :name
-		attr_reader :environment
+    include ::Parmenides::Cachable
 
-		include ::Parmenides::Cachable
+    caching_by :name
+    cache_variable :properties
+    cache_variable :resources
 
-		caching_by :name
-		cache_variable :properties
-		cache_variable :resources
+    def initialize name:, environment:
+      @name = name
+      @environment = environment
+    end
 
-		def initialize name:, environment:
+    def inspect
+      "#<%s:%d URI:%s>" % [ self.class.to_s, self.object_id, self.uri ]
+    end
 
-			@name = name
+    def uri
+      @uri ||= environment.main.resource.vocabulary.__send__ "#{environment.main.template}#{name}"
+    end
 
-			@environment = environment
+    def resources
 
-		end
+      @resources ||= begin
 
-		def inspect
-			"#<%s:%d URI:%s>" % [ self.class.to_s, self.object_id, self.uri ]
-		end
+        sk_resources = Hash.new { |h, k| h[k] = Resource.new k }
+        int_resources = {}
 
-		def uri
-			@uri ||= environment.main.resource.vocabulary.__send__ "#{environment.main.template}#{name}"
-		end
+        environment.client.instance.query( resource_query ).each do |sol|
 
-		def resources
+          skres = sk_resources[sol[:resource]]
+          intres = int_resources[sol[:sgst]]
 
-			@resources ||= begin
+          if intres.nil?
 
-				sk_resources = Hash.new { |h, k| h[k] = Resource.new k }
-				int_resources = {}
+            int_resources[sol[:sgst]] = intres = Resource.new sol[:sgst]
+            skres.same_as << intres
 
-				environment.client.instance.query( resource_query ).each do |sol|
+          end
 
-					skres = sk_resources[sol[:resource]]
-					intres = int_resources[sol[:sgst]]
+          intres.type << ( environment.ontology.instance.klass sol[:type].to_s.split( "/" ).last )
 
-					if intres.nil?
+        end
 
-						int_resources[sol[:sgst]] = intres = Resource.new sol[:sgst]
-						skres.same_as << intres
+        sk_resources.values
 
-					end
+      end
 
-					intres.type << ( environment.ontology.instance.klass sol[:type].to_s.split( "/" ).last )
+    end
 
-				end
+    def resource_query
 
-				sk_resources.values
+      @resource_query ||= begin
 
-			end
+        temp = <<-EOQ
+          SELECT ?resource ?sgst ?type
+          FROM NAMED #{environment.main.uri.to_base}
+        EOQ
 
-		end
+        environment.other.uris.each do |uri|
+          temp << "FROM NAMED #{uri.to_base}\n"
+        end
 
-		def resource_query
+        temp << <<-EOQ
+          WHERE {
 
-			@resource_query ||= begin
+            GRAPH #{environment.main.uri.to_base} {
 
-				temp = <<-EOQ
-					SELECT ?resource ?sgst ?type
-					FROM NAMED #{environment.main.uri.to_base}
-				EOQ
+              ?resource #{environment.main.property.vocabulary.wikiPageUsesTemplate.to_base} #{uri.to_base} .
+              ?resource owl:sameAs ?sgst .
 
-				environment.other.uris.each do |uri|
-					temp << "FROM NAMED #{uri.to_base}\n"
-				end
+        EOQ
 
-				temp << <<-EOQ
-					WHERE {
+        temp << "FILTER( regex( str( ?sgst ), \"http://("
 
-						GRAPH #{environment.main.uri.to_base} {
+        temp << environment.other.prefixes.map do |prefix|
+          Regexp.escape( prefix ).dump[1..-2]
+        end.join( "|" )
 
-							?resource #{environment.main.property.vocabulary.wikiPageUsesTemplate.to_base} #{uri.to_base} .
-							?resource owl:sameAs ?sgst .
+        temp << ")dbpedia.org\", \"i\" ) ) ."
 
-				EOQ
+        temp << <<-EOQ
+            }
 
-				temp << "FILTER( regex( str( ?sgst ), \"http://("
+            VALUES ?g {
+        EOQ
 
-				temp << environment.other.prefixes.map do |prefix|
-					Regexp.escape( prefix ).dump[1..-2]
-				end.join( "|" )
+        temp << environment.other.uris.map do |uri|
+          uri.to_base
+        end.join( " " )
 
-				temp << ")dbpedia.org\", \"i\" ) ) ."
+        temp << <<-EOQ
+            }
 
-				temp << <<-EOQ
-						}
+            GRAPH ?g {
+              ?sgst a ?type .
+            }
 
-						VALUES ?g {
-				EOQ
+          }
 
-				temp << environment.other.uris.map do |uri|
-					uri.to_base
-				end.join( " " )
+        EOQ
 
-				temp << <<-EOQ
-						}
+        temp
 
-						GRAPH ?g {
-							?sgst a ?type .
-						}
+      end
 
-					}
+    end
 
-				EOQ
+    def reload_resources!
 
-				temp
+      @resources = nil
+      resources
 
-			end
+    end
 
-		end
+    def properties
 
-		def reload_resources!
+      @properties ||= begin
 
-			@resources = nil
-			resources
+        properties = Hash.new { |h, k| h[k] = Hash.new( 0 ) }
 
-		end
+        count_query = <<-EOQ
 
-		def properties
+          SELECT ( COUNT( DISTINCT ?resource ) AS ?count ) 
+          FROM #{environment.main.uri.to_base}
+          WHERE {
+            ?resource #{environment.main.property.vocabulary.wikiPageUsesTemplate.to_base} #{uri.to_base} . 
+          }
 
-			@properties ||= begin
+        EOQ
 
-				properties = Hash.new { |h, k| h[k] = Hash.new( 0 ) }
+        # puts count_query
+        count = environment.client.instance.query( count_query )[0][:count].to_i
 
-				count_query = <<-EOQ
+        step = 50
+        
+        resource_query = <<-EOQ
 
-					SELECT ( COUNT( DISTINCT ?resource ) AS ?count ) 
-					FROM #{environment.main.uri.to_base}
-					WHERE {
-						?resource #{environment.main.property.vocabulary.wikiPageUsesTemplate.to_base} #{uri.to_base} . 
-					}
+          SELECT ?res
+          FROM #{environment.main.uri.to_base}
+          WHERE {{
+            SELECT ?res
+            FROM #{environment.main.uri.to_base}
+            WHERE {
+              ?res #{environment.main.property.vocabulary.wikiPageUsesTemplate.to_base} #{uri.to_base} . 
+            } ORDER BY ?res 
+          }} LIMIT #{step} OFFSET #offset#
 
-				EOQ
+        EOQ
 
-				# puts count_query
-				count = environment.client.instance.query( count_query )[0][:count].to_i
+        0.step to: count - 1, by: step do |offset|
 
-				step = 50
-				
-				resource_query = <<-EOQ
+          print "\rProperties: #{offset} / #{count} (#{(offset / count.to_f * 100).round 2} %)"
 
-					SELECT ?res
-					FROM #{environment.main.uri.to_base}
-					WHERE {{
-						SELECT ?res
-						FROM #{environment.main.uri.to_base}
-						WHERE {
-							?res #{environment.main.property.vocabulary.wikiPageUsesTemplate.to_base} #{uri.to_base} . 
-						} ORDER BY ?res 
-					}} LIMIT #{step} OFFSET #offset#
+          resources = environment.client.instance.query( resource_query.sub( "#offset#", offset.to_s ) )
+          resources = resources.map do |sol|
+            sol[:res].to_base
+          end
 
-				EOQ
+          resources = resources.join( " " )
 
-				0.step to: count - 1, by: step do |offset|
+          query = property_query.sub( "#resources#", resources )
+          # puts query
 
-					print "\rProperties: #{offset} / #{count} (#{(offset / count.to_f * 100).round 2} %)"
+          environment.client.instance.query( query ).each do |sol|
+            properties[sol[:prop]][sol[:rel]] += 1
+          end
 
-					resources = environment.client.instance.query( resource_query.sub( "#offset#", offset.to_s ) )
-					resources = resources.map do |sol|
-						sol[:res].to_base
-					end
+        end
 
-					resources = resources.join( " " )
+        properties
 
-					query = property_query.sub( "#resources#", resources )
-					# puts query
+      end
 
-					environment.client.instance.query( query ).each do |sol|
-						properties[sol[:prop]][sol[:rel]] += 1
-					end
+    end
 
-				end
+    def property_query
 
-				properties
+      @property_query ||= begin
 
-			end
+        temp = "SELECT ?prop ?rel\n"
+        temp << "FROM NAMED #{environment.main.uri.to_base}\n"
+        temp << "FROM NAMED #{environment.main.uri_raw.to_base}\n"
 
-		end
+        environment.other.uris.each do |uri|
+          temp << "FROM NAMED #{uri.to_base}\n"
+        end
 
-		def property_query
+        filter = "FILTER ( REGEX( STR(#var#), \"http://("
 
-			@property_query ||= begin
+        filter << environment.other.prefixes.map do |prefix|
+          Regexp.escape( prefix ).dump[1..-2]
+        end.join( "|" )
 
-				temp = "SELECT ?prop ?rel\n"
-				temp << "FROM NAMED #{environment.main.uri.to_base}\n"
-				temp << "FROM NAMED #{environment.main.uri_raw.to_base}\n"
+        filter << ")dbpedia\", \"i\" ) ) ."
 
-				environment.other.uris.each do |uri|
-					temp << "FROM NAMED #{uri.to_base}\n"
-				end
+        temp << <<-EOQ
+          WHERE {
 
-				filter = "FILTER ( REGEX( STR(#var#), \"http://("
+            VALUES ?resource {
+              #resources#
+            }
 
-				filter << environment.other.prefixes.map do |prefix|
-					Regexp.escape( prefix ).dump[1..-2]
-				end.join( "|" )
+            GRAPH #{environment.main.uri_raw.to_base} {
+              ?resource ?prop ?ore .
+            }
 
-				filter << ")dbpedia\", \"i\" ) ) ."
+            GRAPH #{environment.main.uri.to_base} {
 
-				temp << <<-EOQ
-					WHERE {
+              ?resource owl:sameAs ?msa .
 
-						VALUES ?resource {
-							#resources#
-						}
+              #{filter.sub( "#var#", "?msa" )}
 
-						GRAPH #{environment.main.uri_raw.to_base} {
-							?resource ?prop ?ore .
-						}
+            }
 
-						GRAPH #{environment.main.uri.to_base} {
+            VALUES ?g { 
+        EOQ
 
-							?resource owl:sameAs ?msa .
+        temp << environment.other.uris.map do |uri|
+          uri.to_base
+        end.join( " " )
 
-							#{filter.sub( "#var#", "?msa" )}
+        temp << <<-EOQ
+            }
 
-						}
+            OPTIONAL {
+              GRAPH #{environment.main.uri.to_base} {
+                ?ore owl:sameAs ?osa .
+              }
 
-						VALUES ?g { 
-				EOQ
+              #{filter.sub( "#var#", "?osa" )}
+            }
 
-				temp << environment.other.uris.map do |uri|
-					uri.to_base
-				end.join( " " )
+            GRAPH ?g {
 
-				temp << <<-EOQ
-						}
+              { ?msa ?rel ?osa . }
 
-						OPTIONAL {
-							GRAPH #{environment.main.uri.to_base} {
-								?ore owl:sameAs ?osa .
-							}
+              UNION
+              
+              { ?msa ?rel ?ore . }
 
-							#{filter.sub( "#var#", "?osa" )}
-						}
+            } 
 
-						GRAPH ?g {
+          } 
+        EOQ
 
-							{ ?msa ?rel ?osa . }
+      end
 
-							UNION
-							
-							{ ?msa ?rel ?ore . }
+    end
 
-						} 
+    def resources_to_cache
 
-					} 
-				EOQ
+      YAML::dump( resources.map do |res|
 
-			end
+        ruri = res.uri.to_s
+        oths = res.same_as.map do |ore|
 
-		end
+          ouri = ore.uri.to_s
+          type = ore.type.max_by { |k| k.level }.uri.to_s
 
-		def resources_to_cache
+          [ ouri, type ]
 
-			YAML::dump( resources.map do |res|
+        end.to_h
 
-				ruri = res.uri.to_s
-				oths = res.same_as.map do |ore|
+        [ ruri, oths ]
 
-					ouri = ore.uri.to_s
-					type = ore.type.max_by { |k| k.level }.uri.to_s
+      end.to_h )
 
-					[ ouri, type ]
+    end
 
-				end.to_h
+    def resources_from_cache raw
 
-				[ ruri, oths ]
+      @resources = raw.map do |ruri, ores|
 
-			end.to_h )
+        res = Resource.new ruri
 
-		end
+        others = ores.each do |ore, type|
 
-		def resources_from_cache raw
+          other = Resource.new ore
+          other.type << environment.ontology.instance.klass( RDF::URI.new( type ) )
 
-			@resources = raw.map do |ruri, ores|
+          res.same_as << other
 
-				res = Resource.new ruri
+        end
 
-				others = ores.each do |ore, type|
+        res
 
-					other = Resource.new ore
-					other.type << environment.ontology.instance.klass( RDF::URI.new( type ) )
+      end
 
-					res.same_as << other
+    end
 
-				end
+    def properties_to_cache
 
-				res
+      YAML::dump( properties.map do |mprop, others|
+        
+        others = others.map do |oprop, score|
+          [oprop.to_s, score]
+        end.to_h
 
-			end
+        [mprop.to_s, others]
 
-		end
+      end.to_h )
 
-		def properties_to_cache
+    end
 
-			YAML::dump( properties.map do |mprop, others|
-				
-				others = others.map do |oprop, score|
-					[oprop.to_s, score]
-				end.to_h
+    def properties_from_cache raw
 
-				[mprop.to_s, others]
+      @properties = raw.map do |mprop, others|
 
-			end.to_h )
+        others = others.map do |oprop, score|
+          [RDF::URI.new( oprop ), score]
+        end.to_h
 
-		end
+        [RDF::URI.new( mprop ), others]
 
-		def properties_from_cache raw
+      end.to_h
 
-			@properties = raw.map do |mprop, others|
+    end
 
-				others = others.map do |oprop, score|
-					[RDF::URI.new( oprop ), score]
-				end.to_h
+    def reload_properties!
 
-				[RDF::URI.new( mprop ), others]
+      @properties = nil
+      properties
 
-			end.to_h
+    end
 
-		end
-
-		def reload_properties!
-
-			@properties = nil
-			properties
-
-		end
-
-	end
-
+  end
 end

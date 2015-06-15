@@ -1,16 +1,12 @@
 module Parmenides
+  module CLI
+    class BranchDir < RootPath
 
-	module CLI
+      file ".branch", override: "branch"
 
-		class BranchDir < RootPath
+      dir "cache"
+      dir "seasons"
 
-			file ".branch", override: "branch"
-
-			dir "cache"
-			dir "seasons"
-
-		end
-
-	end
-
+    end
+  end
 end

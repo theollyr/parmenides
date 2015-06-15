@@ -1,49 +1,47 @@
 module Parmenides
+  module SpecificProcessor
+    extend Processor
+    extend self
 
-	module SpecificProcessor
-		extend Processor
-		extend self
+    def process input
 
-		def process input
+      input = HistogramProcessor.process( input ).dup
 
-			input = HistogramProcessor.process( input ).dup
+      klasses = input.keys.inject([]) { |w, klass| w |= klass.ancestors_chain }
+      klasses.sort_by! { |k| k.level }
+      klasses = klasses.slice_when { |k1, k2| k1.level != k2.level }.to_a
 
-			klasses = input.keys.inject([]) { |w, klass| w |= klass.ancestors_chain }
-			klasses.sort_by! { |k| k.level }
-			klasses = klasses.slice_when { |k1, k2| k1.level != k2.level }.to_a
+      if klasses.size > 1
 
-			if klasses.size > 1
+        index = 1
 
-				index = 1
+        until klasses[index].nil?
 
-				until klasses[index].nil?
+          delete = []
+          klasses[index].each do |klass|
 
-					delete = []
-					klasses[index].each do |klass|
+            super_klass = klass.sub_class_of[0]
 
-						super_klass = klass.sub_class_of[0]
+            if klasses[index - 1].include? super_klass
 
-						if klasses[index - 1].include? super_klass
+              input[klass] += input[super_klass]
+              delete |= [ super_klass ]
 
-							input[klass] += input[super_klass]
-							delete |= [ super_klass ]
+            end
 
-						end
+          end
 
-					end
+          delete.each { |klass| input.delete klass }
 
-					delete.each { |klass| input.delete klass }
+          index += 1
 
-					index += 1
+        end
 
-				end
+      end
 
-			end
+      input
 
-			input
+    end
 
-		end
-
-	end
-
+  end
 end

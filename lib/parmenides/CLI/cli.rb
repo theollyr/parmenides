@@ -16,520 +16,514 @@ require 'parmenides/CLI/branch_dir'
 require 'parmenides/CLI/branch'
 
 module Parmenides
+  module CLI
+    class ParmenidesCLI < Thor
+      class_option :dir, aliases: '-d', type: :string, default: "."
 
-	module CLI
+      desc "roots", "roots a new tree"
+      option :client, aliases: '-c', type: :string, required: true
+      option :language, aliases: '-l', type: :string, required: true
+      option :template, aliases: '-t', type: :string, required: true
+      def roots
 
-		class ParmenidesCLI < Thor
+        files = TreeDir.new options[:dir]
 
-			class_option :dir, aliases: '-d', type: :string, default: "."
+        settings = { 
+          :main => { :language => options[:language],
+                 :template => options[:template] },
+          :client => { :uri => options[:client] }
+        }
 
-			desc "roots", "roots a new tree"
-			option :client, aliases: '-c', type: :string, required: true
-			option :language, aliases: '-l', type: :string, required: true
-			option :template, aliases: '-t', type: :string, required: true
-			def roots
+        File.open( files.settings, "w" ) { |file|  
+          file.write settings.to_yaml
+        }
 
-				files = TreeDir.new options[:dir]
+        Dir.mkdir files.truth.root
+        Dir.mkdir files.branches.root
 
-				settings = { 
-					:main => { :language => options[:language],
-							   :template => options[:template] },
-					:client => { :uri => options[:client] }
-				}
+        FileUtils.touch files.tree
+        FileUtils.touch files.branches.crown
 
-				File.open( files.settings, "w" ) { |file|  
-					file.write settings.to_yaml
-				}
+      end
 
-				Dir.mkdir files.truth.root
-				Dir.mkdir files.branches.root
+      desc "branch [BRANCH]", "selects BRANCH as the working one"
+      option :new, aliases: '-n', type: :boolean
+      def branch br = nil
 
-				FileUtils.touch files.tree
-				FileUtils.touch files.branches.crown
+        files = TreeDir.new options[:dir]
 
-			end
+        selected_branch = File.read( files.branches.crown ).chomp
+        branches = Branch.scan_dir files.branches.root
 
-			desc "branch [BRANCH]", "selects BRANCH as the working one"
-			option :new, aliases: '-n', type: :boolean
-			def branch br = nil
+        unless selected_branch == "all"
+          selected_branch = selected_branch.split("*")
+        end
 
-				files = TreeDir.new options[:dir]
+        if br.nil?
 
-				selected_branch = File.read( files.branches.crown ).chomp
-				branches = Branch.scan_dir files.branches.root
+          # just show the list
+          puts "Branches:"
+          branches.each do |branch|
 
-				unless selected_branch == "all"
-					selected_branch = selected_branch.split("*")
-				end
+            selected_s = " "
+            selected_s = "*" if selected_branch == "all" || selected_branch.include?( branch.name )
 
-				if br.nil?
+            puts "#{selected_s} #{branch.name}"
 
-					# just show the list
-					puts "Branches:"
-					branches.each do |branch|
+          end
 
-						selected_s = " "
-						selected_s = "*" if selected_branch == "all" || selected_branch.include?( branch.name )
+        else
 
-						puts "#{selected_s} #{branch.name}"
+          br = br.split( "-" ).map { |b| b.split(",").sort.join( "_" ) }
+          branch_names = branches.map { |b| b.name }
 
-					end
+          if options[:new]
 
-				else
+            if br.size > 1
+              puts "Can't create more than one brach at once!"
+              return
+            end
 
-					br = br.split( "-" ).map { |b| b.split(",").sort.join( "_" ) }
-					branch_names = branches.map { |b| b.name }
+            if branch_names.include? br[0]
+              puts "Can't create already existing branch!"
+              return
+            end
 
-					if options[:new]
+            branch = Branch.new br
+            branch.root = File.join files.branches.root, br
 
-						if br.size > 1
-							puts "Can't create more than one brach at once!"
-							return
-						end
+            branch.save!
 
-						if branch_names.include? br[0]
-							puts "Can't create already existing branch!"
-							return
-						end
+            if branches.empty?
+              save_current_branch files.branches.crown, br
+            end
 
-						branch = Branch.new br
-						branch.root = File.join files.branches.root, br
+          else
 
-						branch.save!
+            unless ( br & branch_names ) == br || br == ["all"]
+              puts "Can't find such a branch!"
+              return
+            end
 
-						if branches.empty?
-							save_current_branch files.branches.crown, br
-						end
+            save_current_branch files.branches.crown, br.join("*")
 
-					else
+          end
 
-						unless ( br & branch_names ) == br || br == ["all"]
-							puts "Can't find such a branch!"
-							return
-						end
+        end
 
-						save_current_branch files.branches.crown, br.join("*")
+      end
 
-					end
+      desc "autumn", "create new set of mapping results"
+      option :property_mapper, aliases: '-p', type: :string
+      option :resource_mapper, aliases: '-r', type: :string
+      option :leaf, aliases: '-f',type: :array
+      option :simulate, aliases: '-s', type: :boolean
+      option :label, aliases: '-l', type: :string
+      def autumn
 
-				end
+        files = TreeDir.new options[:dir]
+        branches = get_branches files
 
-			end
+        prop_map = ::Parmenides::Mappers.const_get options[:property_mapper] if options[:property_mapper]
+        res_map = ::Parmenides::Mappers.const_get options[:resource_mapper] if options[:resource_mapper]
 
-			desc "autumn", "create new set of mapping results"
-			option :property_mapper, aliases: '-p', type: :string
-			option :resource_mapper, aliases: '-r', type: :string
-			option :leaf, aliases: '-f',type: :array
-			option :simulate, aliases: '-s', type: :boolean
-			option :label, aliases: '-l', type: :string
-			def autumn
+        conf = ::Parmenides::Environment.empty
+        conf.configure_from_hash Psych.load_file( files.settings )
 
-				files = TreeDir.new options[:dir]
-				branches = get_branches files
+        branches.each do |branch|
 
-				prop_map = ::Parmenides::Mappers.const_get options[:property_mapper] if options[:property_mapper]
-				res_map = ::Parmenides::Mappers.const_get options[:resource_mapper] if options[:resource_mapper]
+          conf.cache.directory = branch.root.cache.root
+          conf.other.languages = branch.name.split( "_" )
 
-				conf = ::Parmenides::Environment.empty
-				conf.configure_from_hash Psych.load_file( files.settings )
+          leaves = if options[:leaf]
+            options[:leaf]
+          else
+            branch.leaves
+          end
 
-				branches.each do |branch|
+          properties = {}
+          resources = {}
 
-					conf.cache.directory = branch.root.cache.root
-					conf.other.languages = branch.name.split( "_" )
+          leaves.each do |leaf|
 
-					leaves = if options[:leaf]
-						options[:leaf]
-					else
-						branch.leaves
-					end
+            ibx = ::Parmenides::Infobox.new name: leaf, environment: conf
+            ibx.load_cache
 
-					properties = {}
-					resources = {}
+            unless prop_map.nil?
 
-					leaves.each do |leaf|
+              res = prop_map.mapping_for ibx.properties
 
-						ibx = ::Parmenides::Infobox.new name: leaf, environment: conf
-						ibx.load_cache
+              properties[ibx.uri.to_s] = res.map do |prop, pred|
+                [prop.to_s, pred.to_s]
+              end.to_h
 
-						unless prop_map.nil?
+            end
 
-							res = prop_map.mapping_for ibx.properties
+            unless res_map.nil?
 
-							properties[ibx.uri.to_s] = res.map do |prop, pred|
-								[prop.to_s, pred.to_s]
-							end.to_h
+              res = res_map.mapping_for ibx.resources
+              res = res.uri.to_s unless res.nil?
 
-						end
+              resources[ibx.uri.to_s] = res
 
-						unless res_map.nil?
+            end
 
-							res = res_map.mapping_for ibx.resources
-							res = res.uri.to_s unless res.nil?
+          end
 
-							resources[ibx.uri.to_s] = res
+          unless options[:simulate]
 
-						end
+            branch.season += 1
+            branch.save!
 
-					end
+            season_file = branch.root.seasons.root
+            season_file = File.join season_file, "#{branch.season.to_s}_#{options[:label]}"
 
-					unless options[:simulate]
+            Dir.mkdir season_file
 
-						branch.season += 1
-						branch.save!
+            unless properties.empty?
 
-						season_file = branch.root.seasons.root
-						season_file = File.join season_file, "#{branch.season.to_s}_#{options[:label]}"
+              File.open( File.join( season_file, "properties.yaml" ), "w" ) do |file|
+                file.write properties.to_yaml
+              end
 
-						Dir.mkdir season_file
+            end
 
-						unless properties.empty?
+            unless resources.empty?
 
-							File.open( File.join( season_file, "properties.yaml" ), "w" ) do |file|
-								file.write properties.to_yaml
-							end
+              File.open( File.join( season_file, "resources.yaml" ), "w" ) do |file|
+                file.write resources.to_yaml
+              end
 
-						end
+            end
 
-						unless resources.empty?
+          else
 
-							File.open( File.join( season_file, "resources.yaml" ), "w" ) do |file|
-								file.write resources.to_yaml
-							end
+            puts "Branch #{branch.name}..."
+            ap properties unless properties.empty?
+            ap resources unless resources.empty?
 
-						end
+          end
 
-					else
+        end
 
-						puts "Branch #{branch.name}..."
-						ap properties unless properties.empty?
-						ap resources unless resources.empty?
+      end
 
-					end
+      desc "evaluate", "evaluates the season against the Truth"
+      # option :show_missing, aliases: '-m', type: :boolean
+      option :only_resources, aliases: '-r', type: :boolean
+      option :only_properties, aliases: '-p', type: :boolean
+      option :method, aliases: '-m', type: :string, default: 'pnr'
+      option :label, aliases: '-l', type: :string
+      def evaluate
 
-				end
+        files = TreeDir.new options[:dir]
 
-			end
+        conf = ::Parmenides::Environment.empty
+        conf.configure_from_hash Psych.load_file( files.settings )
 
-			desc "evaluate", "evaluates the season against the Truth"
-			# option :show_missing, aliases: '-m', type: :boolean
-			option :only_resources, aliases: '-r', type: :boolean
-			option :only_properties, aliases: '-p', type: :boolean
-			option :method, aliases: '-m', type: :string, default: 'pnr'
-			option :label, aliases: '-l', type: :string
-			def evaluate
+        if options[:method] == "hierarchy"
+          puts "Loading ontology..."
+          conf.ontology.instance = Parmenides::StaticOntology.new client: conf.client.instance
+        end
 
-				files = TreeDir.new options[:dir]
+        get_branches( files ).each do |branch|
 
-				conf = ::Parmenides::Environment.empty
-				conf.configure_from_hash Psych.load_file( files.settings )
+          puts
+          puts "Branch #{branch.name}..."
 
-				if options[:method] == "hierarchy"
-					puts "Loading ontology..."
-					conf.ontology.instance = Parmenides::StaticOntology.new client: conf.client.instance
-				end
+          if options[:only_resources]
 
-				get_branches( files ).each do |branch|
+            truth_res_file = files.truth.resources
+              
+            quest_res_file = get_season_file options[:label], branch, "resources.yaml"
+            next if quest_res_file.nil?
 
-					puts
-					puts "Branch #{branch.name}..."
+            if File.exists?( truth_res_file ) && File.exists?( quest_res_file )
 
-					if options[:only_resources]
+              questioning = Psych.load_file quest_res_file
+              truth = Psych.load_file truth_res_file
 
-						truth_res_file = files.truth.resources
-							
-						quest_res_file = get_season_file options[:label], branch, "resources.yaml"
-						next if quest_res_file.nil?
+              evaluator = unless options[:method] == "hierarchy"
 
-						if File.exists?( truth_res_file ) && File.exists?( quest_res_file )
+                questioning = questioning.map do |uri, klass|
+                  k = if klass.nil? 
+                    ::Parmenides::Ontology::Klass::Thing 
+                  else
+                    conf.ontology.instance.klass( klass.split( "/" ).last )
+                  end
 
-							questioning = Psych.load_file quest_res_file
-							truth = Psych.load_file truth_res_file
+                  [uri, k]
+                end.to_h
 
-							evaluator = unless options[:method] == "hierarchy"
+                truth = truth.map do |uri, klass|
+                  [uri, conf.ontology.instance.klass( klass.split( "/" ).last )]
+                end.to_h
 
-								questioning = questioning.map do |uri, klass|
-									k = if klass.nil? 
-										::Parmenides::Ontology::Klass::Thing 
-									else
-										conf.ontology.instance.klass( klass.split( "/" ).last )
-									end
+              # ap questioning
+              # ap truth
 
-									[uri, k]
-								end.to_h
+                ::Parmenides::Evaluation::PnRResourceEvaluator.new questioning: questioning, dataset: truth
 
-								truth = truth.map do |uri, klass|
-									[uri, conf.ontology.instance.klass( klass.split( "/" ).last )]
-								end.to_h
+              else
 
-							# ap questioning
-							# ap truth
+                questioning = questioning.map do |uri, klass|
 
-								::Parmenides::Evaluation::PnRResourceEvaluator.new questioning: questioning, dataset: truth
+                  k = conf.ontology.instance.klass ::RDF::URI.new klass
+                  [uri, k]
 
-							else
+                end.to_h
 
-								questioning = questioning.map do |uri, klass|
+                truth = truth.map do |uri, klass|
 
-									k = conf.ontology.instance.klass ::RDF::URI.new klass
-									[uri, k]
+                  k = conf.ontology.instance.klass ::RDF::URI.new klass
+                  [uri, k]
 
-								end.to_h
+                end.to_h
 
-								truth = truth.map do |uri, klass|
+                ::Parmenides::Evaluation::TagResourceEvaluator.new questioning: questioning, dataset: truth
 
-									k = conf.ontology.instance.klass ::RDF::URI.new klass
-									[uri, k]
+              end
 
-								end.to_h
+              puts
+              puts "Resources:"
 
-								::Parmenides::Evaluation::TagResourceEvaluator.new questioning: questioning, dataset: truth
+              ap evaluator.evaluate
 
-							end
+            end
 
-							puts
-							puts "Resources:"
+          end
 
-							ap evaluator.evaluate
+          if options[:only_properties]
 
-						end
+            truth_prop_file = files.truth.properties
+            quest_prop_file = get_season_file options[:label], branch, "properties.yaml"
+            next if quest_prop_file.nil?
 
-					end
+            stat = Hash.new 0
 
-					if options[:only_properties]
+            if File.exists?( truth_prop_file ) && File.exists?( quest_prop_file )
 
-						truth_prop_file = files.truth.properties
-						quest_prop_file = get_season_file options[:label], branch, "properties.yaml"
-						next if quest_prop_file.nil?
+              questioning = Psych.load_file quest_prop_file
+              truth = Psych.load_file truth_prop_file
 
-						stat = Hash.new 0
+              evaluator = ::Parmenides::Evaluation::PropertyEvaluator.new questioning: questioning, dataset: truth
 
-						if File.exists?( truth_prop_file ) && File.exists?( quest_prop_file )
+              puts
+              puts "Properties:"
+              eval_res = evaluator.evaluate
 
-							questioning = Psych.load_file quest_prop_file
-							truth = Psych.load_file truth_prop_file
+              eval_res.each do |ibx, results|
 
-							evaluator = ::Parmenides::Evaluation::PropertyEvaluator.new questioning: questioning, dataset: truth
+                puts
+                puts "Infobox: #{ibx}:"
 
-							puts
-							puts "Properties:"
-							eval_res = evaluator.evaluate
+                results.each do |res|
 
-							eval_res.each do |ibx, results|
+                  stat[res[:result]] += 1
 
-								puts
-								puts "Infobox: #{ibx}:"
+                  unless res[:result] == :missing && !options[:show_missing]
+                    puts "[#{res[:result]}] #{res[:property]} -> #{res[:mapping]}"
+                  end
 
-								results.each do |res|
+                end
 
-									stat[res[:result]] += 1
+              end
 
-									unless res[:result] == :missing && !options[:show_missing]
-										puts "[#{res[:result]}] #{res[:property]} -> #{res[:mapping]}"
-									end
+            end
 
-								end
+            ap stat
 
-							end
+          end
 
-						end
+        end
 
-						ap stat
+      end
 
-					end
+      desc "mappers", "lists all available mappers"
+      def mappers
 
-				end
+        puts "Available mappers:"
+        ::Parmenides::Mappers.constants( false ).each do |k|
+          puts "  #{k}" unless k == :Mapper
+        end
 
-			end
+      end
 
-			desc "mappers", "lists all available mappers"
-			def mappers
+      desc "export", "exports mappings to DBpedia format"
+      option :season, aliases: '-s', type: :string
+      option :xml, aliases: '-x', type: :boolean
+      option :ns, type: :string, required: true
+      def export
 
-				puts "Available mappers:"
-				::Parmenides::Mappers.constants( false ).each do |k|
-					puts "  #{k}" unless k == :Mapper
-				end
+        files = TreeDir.new options[:dir]
 
-			end
+        conf = ::Parmenides::Environment.empty
+        conf.configure_from_hash Psych.load_file( files.settings )
 
-			desc "export", "exports mappings to DBpedia format"
-			option :season, aliases: '-s', type: :string
-			option :xml, aliases: '-x', type: :boolean
-			option :ns, type: :string, required: true
-			def export
+        get_branches( files ).each do |branch|
 
-				files = TreeDir.new options[:dir]
+          puts
+          puts "Branch #{branch.name}..."
 
-				conf = ::Parmenides::Environment.empty
-				conf.configure_from_hash Psych.load_file( files.settings )
+          path = get_season_file options[:season], branch, ""
+          next if path.nil?
 
-				get_branches( files ).each do |branch|
+          resources = File.join path, "resources.yaml"
+          properties = File.join path, "properties.yaml"
 
-					puts
-					puts "Branch #{branch.name}..."
+          if File.exists?( resources ) && File.exists?( properties )
 
-					path = get_season_file options[:season], branch, ""
-					next if path.nil?
+            resources = Psych.load_file resources
+            properties = Psych.load_file properties
 
-					resources = File.join path, "resources.yaml"
-					properties = File.join path, "properties.yaml"
+            if options[:xml]
 
-					if File.exists?( resources ) && File.exists?( properties )
+              xmlo = Nokogiri::XML::Builder.new encoding: 'utf-8' do |x|
+                x.mediawiki xmlns: "http://www.mediawiki.org/xml/export-0.8/" do
 
-						resources = Psych.load_file resources
-						properties = Psych.load_file properties
+                  resources.each do |ibx, klass|
 
-						if options[:xml]
+                    x.page do
 
-							xmlo = Nokogiri::XML::Builder.new encoding: 'utf-8' do |x|
-								x.mediawiki xmlns: "http://www.mediawiki.org/xml/export-0.8/" do
+                      ibx.match conf.main.template
+                      ibx_name = $'
+                      x.title "Mapping #{conf.main.language}:#{ibx_name.gsub( "_", " " )}"
+                      x.ns options[:ns]
+                      x.id_
 
-									resources.each do |ibx, klass|
+                      x.revision do 
 
-										x.page do
+                        x.id_
+                        x.timestamp
 
-											ibx.match conf.main.template
-											ibx_name = $'
-											x.title "Mapping #{conf.main.language}:#{ibx_name.gsub( "_", " " )}"
-											x.ns options[:ns]
-											x.id_
-
-											x.revision do 
-
-												x.id_
-												x.timestamp
-
-												outmap = <<-EOM
+                        outmap = <<-EOM
 {{TemplateMapping\n| mapToClass = #{klass.split("ontology/").last}
 | mappings =
-												EOM
+                        EOM
 
-												properties[ibx].each do |atr, pred|
+                        properties[ibx].each do |atr, pred|
 
-													outmap << <<-EOM
+                          outmap << <<-EOM
   {{ PropertyMapping | templateProperty = #{conf.ontology.instance.property( atr.split("property/").last ).label.first} | ontologyProperty = #{pred.split("ontology/").last} }}
-													EOM
+                          EOM
 
-												end
+                        end
 
-												outmap << "}}"
+                        outmap << "}}"
 
-												x.text_ outmap
+                        x.text_ outmap
 
-											end
+                      end
 
-										end
+                    end
 
-									end
+                  end
 
-								end
-							end
+                end
+              end
 
-							puts xmlo.to_xml
+              puts xmlo.to_xml
 
-						else
+            else
 
-							resources.each do |ibx, klass|
+              resources.each do |ibx, klass|
 
-								outmap = <<-EOM
+                outmap = <<-EOM
 {{TemplateMapping\n| mapToClass = #{klass.split("ontology/").last}
 | mappings =
-								EOM
+                EOM
 
-								properties[ibx].each do |atr, pred|
+                properties[ibx].each do |atr, pred|
 
-									outmap << <<-EOM
+                  outmap << <<-EOM
   {{ PropertyMapping | templateProperty = #{atr.split("property/").last}" | ontologyProperty = #{pred.split("ontology/").last} }}"
-									EOM
+                  EOM
 
-								end
+                end
 
-								outmap << "}}"
+                outmap << "}}"
 
-								puts "Mapping for the infobox #{ibx}..."
-								puts "----"
+                puts "Mapping for the infobox #{ibx}..."
+                puts "----"
 
-								puts "#{outmap}\n---"
+                puts "#{outmap}\n---"
 
-							end
+              end
 
-						end
+            end
 
-					end
+          end
 
-				end
+        end
 
-			end
+      end
 
-			desc "cache SUBCOMMAND ...ARGS", "manage the cache"
-			subcommand "cache", CLI::Cache
+      desc "cache SUBCOMMAND ...ARGS", "manage the cache"
+      subcommand "cache", CLI::Cache
 
-			desc "leaf SUBCOMMAND ...ARGS", "manage the leaves (infoboxes) of the current branch"
-			subcommand "leaf", CLI::Leaf
+      desc "leaf SUBCOMMAND ...ARGS", "manage the leaves (infoboxes) of the current branch"
+      subcommand "leaf", CLI::Leaf
 
-			no_tasks do
+      no_tasks do
 
-				def save_current_branch path, branch
+        def save_current_branch path, branch
 
-					File.open( path, "w" ) do |file|
-						file.write branch
-					end
+          File.open( path, "w" ) do |file|
+            file.write branch
+          end
 
-				end
+        end
 
-				def get_branches files
+        def get_branches files
 
-					selected_branch = File.read( files.branches.crown ).chomp
+          selected_branch = File.read( files.branches.crown ).chomp
 
-					if selected_branch == "all"
-						CLI::Branch.scan_dir files.branches.root
-					else
+          if selected_branch == "all"
+            CLI::Branch.scan_dir files.branches.root
+          else
 
-						selected_branch.split("*").map do |b|
+            selected_branch.split("*").map do |b|
 
-							branch = CLI::Branch.new b
-							branch.load File.join( files.branches.root, b )
+              branch = CLI::Branch.new b
+              branch.load File.join( files.branches.root, b )
 
-							branch
+              branch
 
-						end
+            end
 
-					end
+          end
 
-				end
+        end
 
-				def get_season_file label, branch, filename
+        def get_season_file label, branch, filename
 
-					if label.nil?
-						File.join branch.root.seasons.root, branch.season.to_s, filename
-					else
+          if label.nil?
+            File.join branch.root.seasons.root, branch.season.to_s, filename
+          else
 
-						if /\A\d+\z/.match(label)
+            if /\A\d+\z/.match(label)
 
-							spath = File.join( branch.root.seasons.root, "#{label}*#{File::Separator}" )
-							search = Dir.glob( spath )
-							return nil if search.empty?
+              spath = File.join( branch.root.seasons.root, "#{label}*#{File::Separator}" )
+              search = Dir.glob( spath )
+              return nil if search.empty?
 
-							File.join search.first, filename
+              File.join search.first, filename
 
-						else
+            else
 
-							spath = File.join( branch.root.seasons.root, "*#{label}#{File::Separator}" )
-							search = Dir.glob( spath )
-							return nil if search.empty?
+              spath = File.join( branch.root.seasons.root, "*#{label}#{File::Separator}" )
+              search = Dir.glob( spath )
+              return nil if search.empty?
 
-							File.join search.first, filename
+              File.join search.first, filename
 
-						end
+            end
 
-					end
+          end
 
-				end
+        end
 
-			end
-
-		end
-
-	end
-
+      end
+    end
+  end
 end

@@ -1,16 +1,14 @@
 module Parmenides
+  class Evaluator
 
-	class Evaluator
+    attr_accessor :questioning, :dataset
 
-		attr_accessor :questioning, :dataset
+    def initialize questioning:, dataset:
 
-		def initialize questioning:, dataset:
+      @questioning = questioning
+      @dataset = dataset
 
-			@questioning = questioning
-			@dataset = dataset
+    end
 
-		end
-
-	end
-
+  end
 end

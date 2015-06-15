@@ -1,52 +1,48 @@
 module Parmenides
+  module Mappers
+    class Mapper
 
-	module Mappers
+      attr_accessor :preprocessor, :processor, :finisher
 
-		class Mapper
+      def initialize preprocessor:nil, processor:nil, finisher:nil
 
-			attr_accessor :preprocessor, :processor, :finisher
+        @preprocessor = preprocessor
+        @processor = processor
+        @finisher = finisher
 
-			def initialize preprocessor:nil, processor:nil, finisher:nil
+      end
 
-				@preprocessor = preprocessor
-				@processor = processor
-				@finisher = finisher
+      def mapping_for data
+        mapping_process_for( data )[:at_end]
+      end
 
-			end
+      def mapping_process_for data
 
-			def mapping_for data
-				mapping_process_for( data )[:at_end]
-			end
+        process = {}
 
-			def mapping_process_for data
+        process[:at_beginning] = data
 
-				process = {}
+        process[:after_prepocessing] = data = call_for :preprocessor, data
+        process[:after_processing] = data = call_for :processor, data
 
-				process[:at_beginning] = data
+        process[:at_end] = call_for :finisher, data
 
-				process[:after_prepocessing] = data = call_for :preprocessor, data
-				process[:after_processing] = data = call_for :processor, data
+        process
 
-				process[:at_end] = call_for :finisher, data
+      end
 
-				process
+      def call_for processor_name, data
 
-			end
+        if send( processor_name ).nil?
+          data
+        else
+          send( processor_name ).call data
+        end
 
-			def call_for processor_name, data
+      end
+      private :call_for
 
-				if send( processor_name ).nil?
-					data
-				else
-					send( processor_name ).call data
-				end
-
-			end
-			private :call_for
-
-		end
-
-	end
-
+    end
+  end
 end
 

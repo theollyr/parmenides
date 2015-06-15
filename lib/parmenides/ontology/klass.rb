@@ -1,64 +1,60 @@
 module Parmenides
+  class Ontology
+    class Klass < Entity
 
-	class Ontology
+      has_property :sub_class_of
 
-		class Klass < Entity
+      attr_reader :ontology
+      attr_accessor :level
 
-			has_property :sub_class_of
+      def initialize uri, level:0, **kwargs
+        super
 
-			attr_reader :ontology
-			attr_accessor :level
+        # @ontology = ontology
+        @level = level
 
-			def initialize uri, level:0, **kwargs
-				super
+      end
 
-				# @ontology = ontology
-				@level = level
+      def sub_class_of= klass
 
-			end
+        sub_class_of.clear
+        sub_class_of << klass if klass.is_a? Klass
 
-			def sub_class_of= klass
+        # if klass.kind_of? RDF::URI
+          
+        #   sub_class_of << (self.ontology.klass klass)
+        #   self.level = sub_class_of[0].level
 
-				sub_class_of.clear
-				sub_class_of << klass if klass.is_a? Klass
+        # end
 
-				# if klass.kind_of? RDF::URI
-					
-				# 	sub_class_of << (self.ontology.klass klass)
-				# 	self.level = sub_class_of[0].level
+      end
 
-				# end
+      def ancestors_chain
 
-			end
+        @ancestors_chain ||= begin
 
-			def ancestors_chain
+          current = self
+          list = []
 
-				@ancestors_chain ||= begin
+          until current.nil?
 
-					current = self
-					list = []
+            list.unshift current
+            current = current.sub_class_of[0]
 
-					until current.nil?
+          end
 
-						list.unshift current
-						current = current.sub_class_of[0]
+          @ancestors = list
 
-					end
+        end
 
-					@ancestors = list
+      end
 
-				end
+      def == oth
+        self.uri == oth.uri
+      end
 
-			end
+      Thing = self.new ::RDF::OWL.Thing
 
-			def == oth
-				self.uri == oth.uri
-			end
-
-			Thing = self.new ::RDF::OWL.Thing
-
-		end
-
-	end
-
+    end
+  end
 end

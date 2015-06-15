@@ -1,30 +1,28 @@
 module Parmenides
+  module CLI
 
-	module CLI
+    class TruthDir < RootPath
 
-		class TruthDir < RootPath
+      file "resources", ext: "yaml"
+      file "properties", ext: "yaml"
 
-			file "resources", ext: "yaml"
-			file "properties", ext: "yaml"
+    end
 
-		end
+    class BranchesDir < RootPath
 
-		class BranchesDir < RootPath
+      file ".crown", override: "crown"
 
-			file ".crown", override: "crown"
+    end
 
-		end
+    class TreeDir < RootPath
 
-		class TreeDir < RootPath
+      file ".tree", override: "tree"
+      file "settings", ext: "yaml"
 
-			file ".tree", override: "tree"
-			file "settings", ext: "yaml"
+      dir "truth", dir_class: CLI::TruthDir
+      dir "branches", dir_class: CLI::BranchesDir
 
-			dir "truth", dir_class: CLI::TruthDir
-			dir "branches", dir_class: CLI::BranchesDir
+    end
 
-		end
-
-	end
-
+  end
 end

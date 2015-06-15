@@ -1,73 +1,69 @@
 module Parmenides
+  module Evaluation
+    class PropertyEvaluator < Evaluator
 
-	module Evaluation
+      def evaluate
 
-		class PropertyEvaluator < Evaluator
+        questioning.map do |ibx, mappings|
 
-			def evaluate
+          expected_mappings = dataset[ibx]
 
-				questioning.map do |ibx, mappings|
+          map_result = if expected_mappings.nil?
+            :missing_dataset
+          else
 
-					expected_mappings = dataset[ibx]
+            part = mappings.map do |property, mapping|
 
-					map_result = if expected_mappings.nil?
-						:missing_dataset
-					else
+              expected = expected_mappings[property]
 
-						part = mappings.map do |property, mapping|
+              result = if expected.nil?
+                :missing
+              elsif mapping == expected
+                :correct
+              else
+                :wrong
+              end
 
-							expected = expected_mappings[property]
+              temp = {}
+              temp[:property] = property
+              temp[:mapping] = mapping
+              temp[:result] = result
 
-							result = if expected.nil?
-								:missing
-							elsif mapping == expected
-								:correct
-							else
-								:wrong
-							end
+              temp
 
-							temp = {}
-							temp[:property] = property
-							temp[:mapping] = mapping
-							temp[:result] = result
+            end
 
-							temp
+            # part |= ( expected_mappings.keys - mappings.keys ).map do |mapping|
 
-						end
+            #   temp = {}
+            #   temp[:mapping] = mapping
+            #   temp[:result] = :unknown
 
-						# part |= ( expected_mappings.keys - mappings.keys ).map do |mapping|
+            # end
 
-						# 	temp = {}
-						# 	temp[:mapping] = mapping
-						# 	temp[:result] = :unknown
+            part
 
-						# end
+          end
 
-						part
+          [ibx, map_result]
 
-					end
+        end.to_h
 
-					[ibx, map_result]
+      end
 
-				end.to_h
+      def statistics
 
-			end
+        result = evaluate
+        stat = Hash.new { |h, k| h[k] = [] }
 
-			def statistics
+        result.each_value do |eval_result|
+          stat[eval_result.result] << eval_result
+        end
 
-				result = evaluate
-				stat = Hash.new { |h, k| h[k] = [] }
+        stat
 
-				result.each_value do |eval_result|
-					stat[eval_result.result] << eval_result
-				end
+      end
 
-				stat
-
-			end
-
-		end
-
-	end
-
+    end
+  end
 end

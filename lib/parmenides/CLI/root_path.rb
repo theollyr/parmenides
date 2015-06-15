@@ -1,64 +1,59 @@
 module Parmenides
+  module CLI
+    class RootPath
+      class << self
 
-	module CLI
+        @files = []
+        @dirs = []
 
-		class RootPath
+        def file name, ext:nil, override:nil
 
-			class << self
+          mname = name
+          mname = override if override
 
-				@files = []
-				@dirs = []
+          define_method mname do
 
-				def file name, ext:nil, override:nil
+            old = self.instance_variable_get "@#{mname}"
+            return old unless old.nil?
 
-					mname = name
-					mname = override if override
+            file = name
+            file += ".#{ext}" unless ext.nil?
+            file = File.join self.root, file
 
-					define_method mname do
+            # @files << file
 
-						old = self.instance_variable_get "@#{mname}"
-						return old unless old.nil?
+            self.instance_variable_set "@#{mname}", file
 
-						file = name
-						file += ".#{ext}" unless ext.nil?
-						file = File.join self.root, file
+          end
 
-						# @files << file
+        end
 
-						self.instance_variable_set "@#{mname}", file
+        def dir name, dir_class: RootPath
 
-					end
+          define_method name do
+            
+            old = self.instance_variable_get "@#{name}" 
+            return old unless old.nil?
 
-				end
+            path = File.join self.root, name
+            dir = dir_class.new  path
 
-				def dir name, dir_class: RootPath
+            # @dirs << dir
 
-					define_method name do
-						
-						old = self.instance_variable_get "@#{name}" 
-						return old unless old.nil?
+            self.instance_variable_set "@#{name}", dir
 
-						path = File.join self.root, name
-						dir = dir_class.new  path
+          end
 
-						# @dirs << dir
+        end
 
-						self.instance_variable_set "@#{name}", dir
+      end
 
-					end
+      def initialize root
+        @root = root
+      end
 
-				end
-
-			end
-
-			def initialize root
-				@root = root
-			end
-
-			attr_reader :root
-
-		end
-
-	end
-
+      attr_reader :root
+      
+    end
+  end
 end

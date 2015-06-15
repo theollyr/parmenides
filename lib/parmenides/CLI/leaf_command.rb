@@ -1,65 +1,61 @@
 module Parmenides
+  module CLI
+    class Leaf < Thor
 
-	module CLI
+      desc "add NAME", "adds new leaf (infobox) with NAME to the currect branch"
+      def add name
 
-		class Leaf < Thor
+        files = TreeDir.new options[:dir]
+        # puts name
 
-			desc "add NAME", "adds new leaf (infobox) with NAME to the currect branch"
-			def add name
+        get_branches( files ).each do |branch|
 
-				files = TreeDir.new options[:dir]
-				# puts name
+          branch.add_leaf name
+          branch.save!
 
-				get_branches( files ).each do |branch|
+        end
 
-					branch.add_leaf name
-					branch.save!
+      end
 
-				end
+      desc "remove NAME", "removes the leaf with NAME from the current branch"
+      def remove name
 
-			end
+        files = TreeDir.new options[:dir]
 
-			desc "remove NAME", "removes the leaf with NAME from the current branch"
-			def remove name
+        get_branches( files ).each do |branch|
 
-				files = TreeDir.new options[:dir]
+          branch.remove_leaf name
+          branch.save!
 
-				get_branches( files ).each do |branch|
+        end
 
-					branch.remove_leaf name
-					branch.save!
+      end
 
-				end
+      no_tasks do
 
-			end
+        def get_branches files
 
-			no_tasks do
+          selected_branch = File.read( files.branches.crown ).chomp
 
-				def get_branches files
+          if selected_branch == "all"
+            CLI::Branch.scan_dir files.branches.root
+          else
 
-					selected_branch = File.read( files.branches.crown ).chomp
+            selected_branch.split("*").map do |b|
 
-					if selected_branch == "all"
-						CLI::Branch.scan_dir files.branches.root
-					else
+              branch = CLI::Branch.new b
+              branch.load File.join( files.branches.root, b )
 
-						selected_branch.split("*").map do |b|
+              branch
 
-							branch = CLI::Branch.new b
-							branch.load File.join( files.branches.root, b )
+            end
 
-							branch
+          end
 
-						end
+        end
 
-					end
+      end
 
-				end
-
-			end
-
-		end
-
-	end
-
+    end
+  end
 end

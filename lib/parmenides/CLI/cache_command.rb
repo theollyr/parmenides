@@ -1,89 +1,85 @@
 module Parmenides
+  module CLI
+    class Cache < Thor
 
-	module CLI
+      desc "build", "builds cache for later use"
+      option :only_resources, aliases: '-r', type: :boolean
+      option :only_properties, aliases: '-p', type: :boolean
+      option :leaf, aliases: '-l', type: :array
+      option :rebuild, type: :boolean
+      def build
 
-		class Cache < Thor
+        files = TreeDir.new options[:dir]
 
-			desc "build", "builds cache for later use"
-			option :only_resources, aliases: '-r', type: :boolean
-			option :only_properties, aliases: '-p', type: :boolean
-			option :leaf, aliases: '-l', type: :array
-			option :rebuild, type: :boolean
-			def build
+        conf = ::Parmenides::Environment.empty
+        conf.configure_from_hash Psych.load_file( files.settings )
 
-				files = TreeDir.new options[:dir]
+        selected_branch = File.read( files.branches.crown ).chomp
 
-				conf = ::Parmenides::Environment.empty
-				conf.configure_from_hash Psych.load_file( files.settings )
+        branches = if selected_branch == "all"
+          CLI::Branch.scan_dir files.branches.root
+        else
 
-				selected_branch = File.read( files.branches.crown ).chomp
+          selected_branch.split("*").map do |b|
 
-				branches = if selected_branch == "all"
-					CLI::Branch.scan_dir files.branches.root
-				else
+            branch = CLI::Branch.new b
+            branch.load File.join( files.branches.root, b )
 
-					selected_branch.split("*").map do |b|
+            branch
 
-						branch = CLI::Branch.new b
-						branch.load File.join( files.branches.root, b )
+          end
 
-						branch
+        end
 
-					end
+        branches.each do |branch|
 
-				end
+          puts "Building cache for the branch #{branch.name}..."
 
-				branches.each do |branch|
+          conf.cache.directory = branch.root.cache.root
+          conf.other.languages = branch.name.split( "_" )
 
-					puts "Building cache for the branch #{branch.name}..."
+          leaves = if options[:leaf]
+            options[:leaf]
+          else
+            branch.leaves
+          end
 
-					conf.cache.directory = branch.root.cache.root
-					conf.other.languages = branch.name.split( "_" )
+          leaves.each do |ibx_name|
 
-					leaves = if options[:leaf]
-						options[:leaf]
-					else
-						branch.leaves
-					end
+            puts "Working on the leaf #{ibx_name}..."
 
-					leaves.each do |ibx_name|
+            ibx = ::Parmenides::Infobox.new name: ibx_name, environment: conf
+            ibx.load_cache unless options[:rebuild]
+            
+            if options[:only_resources]
+              ibx.save_cache override: "resources"
+              next
+            end
 
-						puts "Working on the leaf #{ibx_name}..."
+            if options[:only_properties]
+              ibx.save_cache override: "properties"
+              next
+            end
 
-						ibx = ::Parmenides::Infobox.new name: ibx_name, environment: conf
-						ibx.load_cache unless options[:rebuild]
-						
-						if options[:only_resources]
-							ibx.save_cache override: "resources"
-							next
-						end
+            ibx.save_cache
 
-						if options[:only_properties]
-							ibx.save_cache override: "properties"
-							next
-						end
+            puts
 
-						ibx.save_cache
+          end
 
-						puts
+        end
 
-					end
+      end
 
-				end
+      desc "rebuild", "rebuilds cache for later use"
+      option :only_resources, aliases: '-r', type: :boolean
+      option :only_properties, aliases: '-p', type: :boolean
+      option :leaf, aliases: '-l', type: :array
+      def rebuild
+        options[:rebuild] = true
+        invoke :build, [], options
+      end
 
-			end
-
-			desc "rebuild", "rebuilds cache for later use"
-			option :only_resources, aliases: '-r', type: :boolean
-			option :only_properties, aliases: '-p', type: :boolean
-			option :leaf, aliases: '-l', type: :array
-			def rebuild
-				options[:rebuild] = true
-				invoke :build, [], options
-			end
-
-		end
-
-	end
-
+    end
+  end
 end

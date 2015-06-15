@@ -1,120 +1,116 @@
 module Parmenides
+  module CLI
+    class Branch
 
-	module CLI
+      def self.scan_dir path
 
-		class Branch
+        path = File.join path, "*"
+        path = File.join path, ".branch"
 
-			def self.scan_dir path
+        Dir[path].map do |file|
 
-				path = File.join path, "*"
-				path = File.join path, ".branch"
+          dir = File.dirname file
 
-				Dir[path].map do |file|
+          branch = new File.basename( dir )
+          branch.load dir
 
-					dir = File.dirname file
+          branch
 
-					branch = new File.basename( dir )
-					branch.load dir
+        end
 
-					branch
+      end
 
-				end
+      attr_accessor :season
 
-			end
+      attr_reader :name
+      attr_reader :leaves
 
-			attr_accessor :season
+      def initialize name
 
-			attr_reader :name
-			attr_reader :leaves
+        @name = name
+        @season = 0
+        @physical = false
 
-			def initialize name
+        @leaves = []
 
-				@name = name
-				@season = 0
-				@physical = false
+      end
 
-				@leaves = []
+      def root= nroot
 
-			end
+        if nroot.is_a? CLI::BranchDir
+          @root = nroot
+        # elsif nroot.is_a? CLI::TreeDir
+          # @root = CLI::BranchDir.new File.join( nroot.branches.root, name )
+        else
+          @root = CLI::BranchDir.new nroot # File.join( nroot, name )
+        end
 
-			def root= nroot
+      end
+      attr_reader :root
 
-				if nroot.is_a? CLI::BranchDir
-					@root = nroot
-				# elsif nroot.is_a? CLI::TreeDir
-					# @root = CLI::BranchDir.new File.join( nroot.branches.root, name )
-				else
-					@root = CLI::BranchDir.new nroot # File.join( nroot, name )
-				end
+      def physical?
+        @physical
+      end
 
-			end
-			attr_reader :root
+      def add_leaf leaf
+        @leaves |= [ leaf ]
+      end
 
-			def physical?
-				@physical
-			end
+      def remove_leaf leaf
+        @leaves -= [ leaf ]
+      end
 
-			def add_leaf leaf
-				@leaves |= [ leaf ]
-			end
+      def save!
 
-			def remove_leaf leaf
-				@leaves -= [ leaf ]
-			end
+        unless root
+          raise "missing root directory"
+        end
 
-			def save!
+        unless physical?
 
-				unless root
-					raise "missing root directory"
-				end
+          Dir.mkdir root.root
 
-				unless physical?
+          Dir.mkdir root.cache.root
+          Dir.mkdir root.seasons.root
 
-					Dir.mkdir root.root
+          @physical = true
 
-					Dir.mkdir root.cache.root
-					Dir.mkdir root.seasons.root
+        end
 
-					@physical = true
+        File.open root.branch, "w" do |file|
 
-				end
+          data = {
+            :current_season => season,
+            :leaves => leaves
+          }
 
-				File.open root.branch, "w" do |file|
+          file.write data.to_yaml
 
-					data = {
-						:current_season => season,
-						:leaves => leaves
-					}
+        end
 
-					file.write data.to_yaml
+      end
 
-				end
+      def load troot=nil
 
-			end
+        if troot
+          self.root = troot
+        end
 
-			def load troot=nil
+        if root
 
-				if troot
-					self.root = troot
-				end
+          data = Psych.load_file root.branch
 
-				if root
+          @season = data[:current_season]
+          @leaves = data[:leaves]
 
-					data = Psych.load_file root.branch
+        else
+          raise "missing root directory"
+        end
 
-					@season = data[:current_season]
-					@leaves = data[:leaves]
+        @physical = true
 
-				else
-					raise "missing root directory"
-				end
+      end
 
-				@physical = true
-
-			end
-
-		end
-
-	end
-
+    end
+  end
 end
