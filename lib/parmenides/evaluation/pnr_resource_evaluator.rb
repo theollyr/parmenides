@@ -46,6 +46,7 @@ module Parmenides
 
 				res[:precision] = res[:tp] / ( res[:tp] + res[:fp] ).to_f
 				res[:recall] = res[:tp] / ( res[:tp] + res[:fn] ).to_f
+				res[:f1] = ( res[:precision] * res[:recall] ) / ( res[:precision] + res[:recall] ) * 2
 				res
 
 			end
