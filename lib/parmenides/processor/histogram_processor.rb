@@ -1,19 +1,17 @@
 module Parmenides
   module HistogramProcessor
     extend Processor
-    extend self
 
-    def process input
+    module_function
 
-      histogram = Hash.new 0
+    def process(input)
+      histogram = Hash.new(0)
 
-      input.each do |r, k|
+      input.each do |_, k|
         histogram[k] += 1
       end
 
       histogram
-
     end
-
   end
 end
